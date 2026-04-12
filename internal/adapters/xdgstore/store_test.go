@@ -205,6 +205,7 @@ func sampleSandbox() *sandbox.Sandbox {
 	return &sandbox.Sandbox{
 		Kind:        sandbox.KindAWS,
 		Slug:        "aws-sandbox",
+		Verified:    true,
 		Credentials: sandbox.Credentials{AccessKey: "AKIA123", SecretKey: "secret"},
 		Console:     sandbox.Console{URL: "https://acct.signin.aws/", Username: "whiz", Password: "pw"},
 		Identity:    sandbox.Identity{Account: "111111111111", UserID: "AIDA", ARN: "arn:...", Region: "us-east-1"},
@@ -237,6 +238,9 @@ func TestStore_SandboxRoundTrip(t *testing.T) {
 	}
 	if got.Identity != orig.Identity {
 		t.Errorf("identity mismatch: got %+v want %+v", got.Identity, orig.Identity)
+	}
+	if got.Verified != orig.Verified {
+		t.Errorf("verified mismatch: got %v want %v", got.Verified, orig.Verified)
 	}
 	if !got.ExpiresAt.Equal(orig.ExpiresAt) || !got.StartedAt.Equal(orig.StartedAt) {
 		t.Errorf("times mismatch: started=%v expires=%v", got.StartedAt, got.ExpiresAt)
@@ -291,6 +295,89 @@ func TestStore_SaveTokensPreservesSandbox(t *testing.T) {
 	}
 	if got.Credentials.AccessKey == "" {
 		t.Error("cached sandbox credentials should survive token Save")
+	}
+}
+
+func TestStore_ClearPreservesSandboxCache(t *testing.T) {
+	s := tempStore(t)
+	if err := s.Save(context.Background(), sampleTokens()); err != nil {
+		t.Fatalf("Save tokens: %v", err)
+	}
+	orig := sampleSandbox()
+	if err := s.SaveSandbox(context.Background(), orig); err != nil {
+		t.Fatalf("SaveSandbox: %v", err)
+	}
+
+	if err := s.Clear(context.Background()); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+
+	if _, found, err := s.Load(context.Background()); err != nil {
+		t.Fatalf("Load after clear: %v", err)
+	} else if found {
+		t.Fatal("session tokens should be cleared")
+	}
+
+	got, found, err := s.LoadSandbox(context.Background(), sandbox.KindAWS)
+	if err != nil {
+		t.Fatalf("LoadSandbox after clear: %v", err)
+	}
+	if !found {
+		t.Fatal("sandbox cache should survive session clear")
+	}
+	if got.Credentials.AccessKey != orig.Credentials.AccessKey || !got.Verified {
+		t.Errorf("sandbox cache mismatch after clear: %+v", got)
+	}
+}
+
+func TestStore_LoadSandboxOnlyStateReportsLoggedOut(t *testing.T) {
+	s := tempStore(t)
+	if err := s.SaveSandbox(context.Background(), sampleSandbox()); err != nil {
+		t.Fatalf("SaveSandbox: %v", err)
+	}
+
+	tokens, found, err := s.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if found {
+		t.Fatalf("Load should report logged out, got tokens=%+v", tokens)
+	}
+
+	sb, found, err := s.LoadSandbox(context.Background(), sandbox.KindAWS)
+	if err != nil {
+		t.Fatalf("LoadSandbox: %v", err)
+	}
+	if !found || sb == nil {
+		t.Fatal("sandbox should still load from sandbox-only state")
+	}
+}
+
+func TestStore_SaveTokensAfterLogoutPreservesSandbox(t *testing.T) {
+	s := tempStore(t)
+	orig := sampleSandbox()
+	if err := s.Save(context.Background(), sampleTokens()); err != nil {
+		t.Fatalf("Save tokens: %v", err)
+	}
+	if err := s.SaveSandbox(context.Background(), orig); err != nil {
+		t.Fatalf("SaveSandbox: %v", err)
+	}
+	if err := s.Clear(context.Background()); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+	if err := s.Save(context.Background(), sampleTokens()); err != nil {
+		t.Fatalf("Save after clear: %v", err)
+	}
+
+	got, found, err := s.LoadSandbox(context.Background(), sandbox.KindAWS)
+	if err != nil {
+		t.Fatalf("LoadSandbox after re-save: %v", err)
+	}
+	if !found || got == nil {
+		t.Fatal("sandbox cache should survive saving new tokens after clear")
+	}
+	if got.Credentials.AccessKey != orig.Credentials.AccessKey || !got.Verified {
+		t.Errorf("sandbox cache mismatch after token re-save: %+v", got)
 	}
 }
 
@@ -373,6 +460,39 @@ func TestStore_LoadSandboxUnparsableIgnoredNotDeleted(t *testing.T) {
 	}
 	if !foundTokens {
 		t.Error("session tokens must survive a corrupt sandbox entry")
+	}
+}
+
+func TestStore_LoadSandboxLegacyIdentityInfersVerified(t *testing.T) {
+	s := tempStore(t)
+	legacy := `{
+  "version": 1,
+  "whizlabs": {},
+  "sandboxes": {
+    "aws": {
+      "kind": "aws",
+      "slug": "aws-sandbox",
+      "credentials": {"access_key": "AKIA123", "secret_key": "secret"},
+      "console": {"url": "https://acct.signin.aws/", "username": "whiz", "password": "pw"},
+      "identity": {"account": "111111111111", "user_id": "AIDA", "arn": "arn:...", "region": "us-east-1"},
+      "started_at": "2026-04-11T12:00:00Z",
+      "expires_at": "2026-04-11T13:00:00Z"
+    }
+  }
+}`
+	if err := os.WriteFile(s.Path(), []byte(legacy), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, found, err := s.LoadSandbox(context.Background(), sandbox.KindAWS)
+	if err != nil {
+		t.Fatalf("LoadSandbox: %v", err)
+	}
+	if !found || got == nil {
+		t.Fatal("legacy sandbox should load")
+	}
+	if !got.Verified {
+		t.Errorf("legacy sandbox with identity should infer verified: %+v", got)
 	}
 }
 

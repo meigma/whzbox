@@ -111,6 +111,7 @@ type tokensDTO struct {
 type sandboxDTO struct {
 	Kind      string         `json:"kind"`
 	Slug      string         `json:"slug"`
+	Verified  *bool          `json:"verified,omitempty"`
 	Creds     credentialsDTO `json:"credentials"`
 	Console   consoleDTO     `json:"console"`
 	Identity  identityDTO    `json:"identity"`
@@ -137,9 +138,11 @@ type identityDTO struct {
 }
 
 // Load implements session.TokenStore. A missing file is NOT an error —
-// callers see (zero tokens, false, nil). Corrupt or wrong-schema files
-// are self-healed (deleted) with a warning log, which is safer than
-// surfacing a hard error to the CLI on every invocation.
+// callers see (zero tokens, false, nil). A state file with an empty
+// auth section but cached sandboxes is treated as "logged out", not
+// corrupt. Corrupt or wrong-schema files are self-healed (deleted) with
+// a warning log, which is safer than surfacing a hard error to the CLI
+// on every invocation.
 func (s *Store) Load(ctx context.Context) (session.Tokens, bool, error) {
 	info, err := os.Stat(s.path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -172,6 +175,9 @@ func (s *Store) Load(ctx context.Context) (session.Tokens, bool, error) {
 		s.logger.WarnContext(ctx, "state file has unknown schema version, removing",
 			"path", s.path, "version", f.Version)
 		_ = os.Remove(s.path)
+		return session.Tokens{}, false, nil
+	}
+	if tokensDTOEmpty(f.Whizlabs) {
 		return session.Tokens{}, false, nil
 	}
 
@@ -244,15 +250,37 @@ func (s *Store) writeAtomic(f fileFormat) error {
 }
 
 // Clear implements session.TokenStore. A missing file is not an error.
+// When sandbox cache entries exist in the shared state file, only the
+// auth section is cleared so cached sandbox credentials survive logout.
 func (s *Store) Clear(_ context.Context) error {
-	err := os.Remove(s.path)
-	if errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Stat(s.path); errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
-	if err != nil {
-		return fmt.Errorf("remove state file: %w", err)
+
+	f := s.readCurrent()
+	if len(f.Sandboxes) == 0 {
+		err := os.Remove(s.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("remove state file: %w", err)
+		}
+		return nil
 	}
-	return nil
+
+	f.Whizlabs = tokensDTO{}
+	if stateEmpty(f) {
+		err := os.Remove(s.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("remove state file: %w", err)
+		}
+		return nil
+	}
+	return s.writeAtomic(f)
 }
 
 // dtoFromTokens converts a domain Tokens into the on-disk shape. Times
@@ -402,6 +430,16 @@ func (s *Store) ClearSandboxes(_ context.Context) error {
 		return nil
 	}
 	f.Sandboxes = nil
+	if stateEmpty(f) {
+		err := os.Remove(s.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("remove state file: %w", err)
+		}
+		return nil
+	}
 	return s.writeAtomic(f)
 }
 
@@ -433,9 +471,11 @@ func (v sandboxView) ClearAll(ctx context.Context) error {
 }
 
 func dtoFromSandbox(sb *sandbox.Sandbox) sandboxDTO {
+	verified := sb.Verified
 	return sandboxDTO{
-		Kind: string(sb.Kind),
-		Slug: sb.Slug,
+		Kind:     string(sb.Kind),
+		Slug:     sb.Slug,
+		Verified: &verified,
 		Creds: credentialsDTO{
 			AccessKey: sb.Credentials.AccessKey,
 			SecretKey: sb.Credentials.SecretKey,
@@ -466,8 +506,9 @@ func sandboxFromDTO(d sandboxDTO) (*sandbox.Sandbox, error) {
 		return nil, fmt.Errorf("parse expires_at: %w", err)
 	}
 	return &sandbox.Sandbox{
-		Kind: sandbox.Kind(d.Kind),
-		Slug: d.Slug,
+		Kind:     sandbox.Kind(d.Kind),
+		Slug:     d.Slug,
+		Verified: sandboxVerified(d),
 		Credentials: sandbox.Credentials{
 			AccessKey: d.Creds.AccessKey,
 			SecretKey: d.Creds.SecretKey,
@@ -486,4 +527,23 @@ func sandboxFromDTO(d sandboxDTO) (*sandbox.Sandbox, error) {
 		StartedAt: startedAt,
 		ExpiresAt: expiresAt,
 	}, nil
+}
+
+func tokensDTOEmpty(d tokensDTO) bool {
+	return d.UserEmail == "" &&
+		d.AccessToken == "" &&
+		d.RefreshToken == "" &&
+		d.AccessTokenExpiresAt == "" &&
+		d.RefreshTokenExpiresAt == ""
+}
+
+func stateEmpty(f fileFormat) bool {
+	return tokensDTOEmpty(f.Whizlabs) && len(f.Sandboxes) == 0
+}
+
+func sandboxVerified(d sandboxDTO) bool {
+	if d.Verified != nil {
+		return *d.Verified
+	}
+	return d.Identity.Account != "" || d.Identity.UserID != "" || d.Identity.ARN != ""
 }

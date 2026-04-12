@@ -1,10 +1,12 @@
 package whizlabs_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -227,6 +229,89 @@ func TestClient_Create_PlayAPIStatusFalse(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "quota exceeded") {
 		t.Errorf("error should carry upstream message: %v", err)
+	}
+}
+
+func TestClient_Create_InvalidTimesUseFallbackWindow(t *testing.T) {
+	router := newPlayRouter()
+	router.createResp = []byte(`{
+		"status": true,
+		"message": "ok",
+		"data": {
+			"login_link": "https://111111111111.signin.aws.amazon.com/console?region=us-east-1",
+			"username": "Whiz_User_test.1",
+			"password": "pw-uuid-1",
+			"accesskey": "AKIA...TEST1",
+			"secretkey": "secret-1",
+			"start_time": "not-a-time",
+			"end_time": "also-not-a-time"
+		}
+	}`)
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	c := whizlabs.NewClient(config.WhizlabsConfig{
+		BaseURL: srv.URL,
+		PlayURL: srv.URL,
+	}, logger)
+
+	before := time.Now().UTC()
+	sb, err := c.Create(context.Background(), sampleTokens(), "aws-sandbox", 90*time.Minute)
+	after := time.Now().UTC()
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if sb.StartedAt.IsZero() || sb.ExpiresAt.IsZero() {
+		t.Fatalf("fallback timestamps should be non-zero: start=%v end=%v", sb.StartedAt, sb.ExpiresAt)
+	}
+	if sb.StartedAt.Before(before) || sb.StartedAt.After(after.Add(time.Second)) {
+		t.Errorf("fallback start not based on local create time: got %v, want between %v and %v", sb.StartedAt, before, after)
+	}
+	if got := sb.ExpiresAt.Sub(sb.StartedAt); got != 2*time.Hour {
+		t.Errorf("fallback expiry should use rounded duration: got %v, want %v", got, 2*time.Hour)
+	}
+	logOutput := logs.String()
+	for _, want := range []string{
+		"invalid sandbox timestamps",
+		"start_time=not-a-time",
+		"end_time=also-not-a-time",
+	} {
+		if !strings.Contains(logOutput, want) {
+			t.Errorf("log output missing %q: %s", want, logOutput)
+		}
+	}
+}
+
+func TestClient_Create_InvalidTimeOrderUsesFallbackWindow(t *testing.T) {
+	router := newPlayRouter()
+	router.createResp = []byte(`{
+		"status": true,
+		"message": "ok",
+		"data": {
+			"login_link": "https://111111111111.signin.aws.amazon.com/console?region=us-east-1",
+			"username": "Whiz_User_test.1",
+			"password": "pw-uuid-1",
+			"accesskey": "AKIA...TEST1",
+			"secretkey": "secret-1",
+			"start_time": "2026-04-11 13:00:00",
+			"end_time": "2026-04-11 12:00:00"
+		}
+	}`)
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+	c := newClient(srv.URL)
+
+	sb, err := c.Create(context.Background(), sampleTokens(), "aws-sandbox", time.Hour)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if sb.StartedAt.IsZero() || sb.ExpiresAt.IsZero() {
+		t.Fatalf("fallback timestamps should be non-zero: start=%v end=%v", sb.StartedAt, sb.ExpiresAt)
+	}
+	if got := sb.ExpiresAt.Sub(sb.StartedAt); got != time.Hour {
+		t.Errorf("fallback expiry should preserve requested duration: got %v, want %v", got, time.Hour)
 	}
 }
 

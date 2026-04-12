@@ -79,9 +79,31 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 	if cached, hit, lerr := s.store.Load(ctx, kind); lerr != nil {
 		s.logger.WarnContext(ctx, "sandbox cache load failed; continuing without reuse", "err", lerr)
 	} else if hit && cached.ExpiresAt.After(s.clock.Now()) {
-		s.logger.InfoContext(ctx, "reusing active sandbox",
+		if cached.Verified {
+			s.logger.InfoContext(ctx, "reusing active sandbox",
+				"kind", cached.Kind, "expires_at", cached.ExpiresAt)
+			return cached, nil
+		}
+
+		s.logger.InfoContext(ctx, "re-verifying cached sandbox",
 			"kind", cached.Kind, "expires_at", cached.ExpiresAt)
-		return cached, nil
+		identity, verr := prov.VerifyCredentials(ctx, cached.Credentials)
+		if verr == nil {
+			cached.Identity = identity
+			cached.Verified = true
+			if cerr := s.store.Save(ctx, cached); cerr != nil {
+				s.logger.WarnContext(ctx, "failed to update cached sandbox", "err", cerr)
+			}
+			s.logger.InfoContext(ctx, "reusing active sandbox",
+				"kind", cached.Kind, "expires_at", cached.ExpiresAt)
+			return cached, nil
+		}
+
+		cached.Verified = false
+		if cerr := s.store.Save(ctx, cached); cerr != nil {
+			s.logger.WarnContext(ctx, "failed to update cached sandbox", "err", cerr)
+		}
+		return cached, fmt.Errorf("%w: %w", ErrVerificationFailed, verr)
 	}
 
 	tokens, err := s.session.EnsureValid(ctx)
@@ -113,6 +135,9 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 	identity, verr := prov.VerifyCredentials(ctx, sb.Credentials)
 	if verr == nil {
 		sb.Identity = identity
+		sb.Verified = true
+	} else {
+		sb.Verified = false
 	}
 
 	// Cache the provisioned sandbox so a subsequent create can reuse

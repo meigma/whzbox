@@ -56,7 +56,10 @@ type Sandbox struct {
 	Slug        string // whizlabs slug, e.g. "aws-sandbox"
 	Credentials Credentials
 	Console     Console
-	Identity    Identity
-	StartedAt   time.Time
-	ExpiresAt   time.Time
+	// Verified reports whether the provider-specific credential check
+	// completed successfully for this sandbox.
+	Verified  bool
+	Identity  Identity
+	StartedAt time.Time
+	ExpiresAt time.Time
 }
