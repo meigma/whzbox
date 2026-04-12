@@ -12,7 +12,7 @@ const (
 	ExitOK             = 0
 	ExitGeneric        = 1
 	ExitAuth           = 2
-	ExitProvider       = 3 // reserved for phase 6 sandbox errors
+	ExitProvider       = 3
 	ExitUserAborted    = 4
 	ExitNonInteractive = 5
 )

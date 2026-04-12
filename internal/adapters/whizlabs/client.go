@@ -27,8 +27,7 @@ const defaultTimeout = 60 * time.Second
 const maxBodyTruncate = 200
 
 // Client is the HTTP client for the Whizlabs API. It implements
-// session.IdentityProvider (phase 4) and will also implement
-// sandbox.Manager in phase 6.
+// session.IdentityProvider and sandbox.Manager.
 //
 // Instances are safe for concurrent use. The underlying [http.Client] is
 // shared across all calls.

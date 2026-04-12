@@ -51,20 +51,15 @@ func RenderSandbox(w io.Writer, sb *sandbox.Sandbox) {
 		{"AWS_SECRET_ACCESS_KEY", sb.Credentials.SecretKey},
 	}
 
-	var body string
-	var bodySb52 strings.Builder
+	var buf strings.Builder
 	for _, r := range rows {
 		if r.k == "" && r.v == "" {
-			bodySb52.WriteString("\n")
+			buf.WriteString("\n")
 			continue
 		}
-		bodySb52.WriteString(label.Render(r.k) + "  " + r.v + "\n")
+		buf.WriteString(label.Render(r.k) + "  " + r.v + "\n")
 	}
-	body += bodySb52.String()
-	// Trim the final newline so the frame fits snugly.
-	if len(body) > 0 && body[len(body)-1] == '\n' {
-		body = body[:len(body)-1]
-	}
+	body := strings.TrimRight(buf.String(), "\n")
 
 	fpf(w, "%s\n\n", SandboxFrame().Render(body))
 	fpf(w, "Destroy with:  whzbox destroy\n")
