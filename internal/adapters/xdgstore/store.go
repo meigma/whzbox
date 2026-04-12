@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/meigma/whzbox/internal/core/sandbox"
 	"github.com/meigma/whzbox/internal/core/session"
 )
 
@@ -94,8 +95,9 @@ func ResolveStateDir(override string) (string, error) {
 // version field lets us evolve the schema without breaking existing
 // installs — an unknown version is treated as corrupt state.
 type fileFormat struct {
-	Version  int       `json:"version"`
-	Whizlabs tokensDTO `json:"whizlabs"`
+	Version   int                   `json:"version"`
+	Whizlabs  tokensDTO             `json:"whizlabs"`
+	Sandboxes map[string]sandboxDTO `json:"sandboxes,omitempty"`
 }
 
 type tokensDTO struct {
@@ -104,6 +106,34 @@ type tokensDTO struct {
 	RefreshToken          string `json:"refresh_token"`
 	AccessTokenExpiresAt  string `json:"access_token_expires_at"`
 	RefreshTokenExpiresAt string `json:"refresh_token_expires_at"`
+}
+
+type sandboxDTO struct {
+	Kind      string         `json:"kind"`
+	Slug      string         `json:"slug"`
+	Creds     credentialsDTO `json:"credentials"`
+	Console   consoleDTO     `json:"console"`
+	Identity  identityDTO    `json:"identity"`
+	StartedAt string         `json:"started_at"`
+	ExpiresAt string         `json:"expires_at"`
+}
+
+type credentialsDTO struct {
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+}
+
+type consoleDTO struct {
+	URL      string `json:"url"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type identityDTO struct {
+	Account string `json:"account"`
+	UserID  string `json:"user_id"`
+	ARN     string `json:"arn"`
+	Region  string `json:"region"`
 }
 
 // Load implements session.TokenStore. A missing file is NOT an error —
@@ -157,11 +187,37 @@ func (s *Store) Load(ctx context.Context) (session.Tokens, bool, error) {
 // Save implements session.TokenStore. It writes atomically: marshal
 // -> write temp file with 0600 -> chmod -> rename. If any step fails
 // the original file is untouched.
+//
+// Save preserves any cached sandboxes already on disk (read-modify-
+// write) so that a session refresh does not clobber the sandbox
+// cache.
 func (s *Store) Save(_ context.Context, t session.Tokens) error {
-	f := fileFormat{
-		Version:  schemaVersion,
-		Whizlabs: dtoFromTokens(t),
+	f := s.readCurrent()
+	f.Whizlabs = dtoFromTokens(t)
+	return s.writeAtomic(f)
+}
+
+// readCurrent reads the current on-disk state, returning a zero
+// fileFormat (at the current schema version) if the file is missing,
+// unreadable, corrupt, or at an unknown version. Used by writers to
+// merge their update into whatever is already stored without blowing
+// away unrelated fields.
+func (s *Store) readCurrent() fileFormat {
+	zero := fileFormat{Version: schemaVersion}
+	data, err := os.ReadFile(s.path)
+	if err != nil {
+		return zero
 	}
+	var f fileFormat
+	if uerr := json.Unmarshal(data, &f); uerr != nil || f.Version != schemaVersion {
+		return zero
+	}
+	return f
+}
+
+// writeAtomic marshals f and writes it to the state path via
+// temp-file + rename, ensuring the final mode is exactly 0600.
+func (s *Store) writeAtomic(f fileFormat) error {
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal state: %w", err)
@@ -228,5 +284,159 @@ func tokensFromDTO(d tokensDTO) (session.Tokens, error) {
 		RefreshToken:          d.RefreshToken,
 		AccessTokenExpiresAt:  accessExp,
 		RefreshTokenExpiresAt: refreshExp,
+	}, nil
+}
+
+// LoadSandbox returns the cached sandbox for the given kind, or
+// (nil, false, nil) when nothing is cached. An unparsable cached
+// entry is ignored (treated as a miss) with a warning — the session
+// tokens in the same file are preserved, because losing your login
+// just to recover from a bad cache entry is a bad trade.
+func (s *Store) LoadSandbox(ctx context.Context, kind sandbox.Kind) (*sandbox.Sandbox, bool, error) {
+	info, err := os.Stat(s.path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("stat state file: %w", err)
+	}
+	if m := info.Mode().Perm(); m != fileMode {
+		return nil, false, fmt.Errorf("state file %s has mode %v, want %v", s.path, m, fileMode)
+	}
+
+	data, err := os.ReadFile(s.path)
+	if err != nil {
+		return nil, false, fmt.Errorf("read state file: %w", err)
+	}
+	var f fileFormat
+	if uerr := json.Unmarshal(data, &f); uerr != nil {
+		// Whole-file corruption is self-healed by the session token
+		// Load path; here we just treat the cache as a miss so the
+		// caller proceeds to provision a fresh sandbox.
+		s.logger.WarnContext(ctx, "state file is corrupt, ignoring cached sandbox",
+			"path", s.path, "err", uerr)
+		return nil, false, nil
+	}
+	if f.Version != schemaVersion {
+		return nil, false, nil
+	}
+
+	dto, ok := f.Sandboxes[string(kind)]
+	if !ok {
+		return nil, false, nil
+	}
+	sb, err := sandboxFromDTO(dto)
+	if err != nil {
+		s.logger.WarnContext(ctx, "cached sandbox is unparsable, ignoring",
+			"path", s.path, "kind", kind, "err", err)
+		return nil, false, nil
+	}
+	return sb, true, nil
+}
+
+// SaveSandbox writes sb into the cache keyed by its Kind, preserving
+// session tokens and any sandbox entries for other kinds.
+func (s *Store) SaveSandbox(_ context.Context, sb *sandbox.Sandbox) error {
+	if sb == nil {
+		return errors.New("xdgstore: nil sandbox")
+	}
+	f := s.readCurrent()
+	if f.Sandboxes == nil {
+		f.Sandboxes = map[string]sandboxDTO{}
+	}
+	f.Sandboxes[string(sb.Kind)] = dtoFromSandbox(sb)
+	return s.writeAtomic(f)
+}
+
+// ClearSandboxes drops every cached sandbox, preserving session
+// tokens. A missing state file is a no-op (nothing to clear).
+func (s *Store) ClearSandboxes(_ context.Context) error {
+	if _, err := os.Stat(s.path); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	f := s.readCurrent()
+	if len(f.Sandboxes) == 0 {
+		return nil
+	}
+	f.Sandboxes = nil
+	return s.writeAtomic(f)
+}
+
+// SandboxStore returns a view of this Store that satisfies
+// sandbox.Store. A separate wrapper is needed because *Store already
+// has Load/Save/Clear methods with session.TokenStore signatures,
+// and Go does not allow two methods with the same name but different
+// signatures on a single receiver.
+func (s *Store) SandboxStore() sandbox.Store {
+	return sandboxView{s: s}
+}
+
+type sandboxView struct{ s *Store }
+
+func (v sandboxView) Load(ctx context.Context, kind sandbox.Kind) (*sandbox.Sandbox, bool, error) {
+	return v.s.LoadSandbox(ctx, kind)
+}
+
+func (v sandboxView) Save(ctx context.Context, sb *sandbox.Sandbox) error {
+	return v.s.SaveSandbox(ctx, sb)
+}
+
+func (v sandboxView) ClearAll(ctx context.Context) error {
+	return v.s.ClearSandboxes(ctx)
+}
+
+func dtoFromSandbox(sb *sandbox.Sandbox) sandboxDTO {
+	return sandboxDTO{
+		Kind: string(sb.Kind),
+		Slug: sb.Slug,
+		Creds: credentialsDTO{
+			AccessKey: sb.Credentials.AccessKey,
+			SecretKey: sb.Credentials.SecretKey,
+		},
+		Console: consoleDTO{
+			URL:      sb.Console.URL,
+			Username: sb.Console.Username,
+			Password: sb.Console.Password,
+		},
+		Identity: identityDTO{
+			Account: sb.Identity.Account,
+			UserID:  sb.Identity.UserID,
+			ARN:     sb.Identity.ARN,
+			Region:  sb.Identity.Region,
+		},
+		StartedAt: sb.StartedAt.Format(time.RFC3339),
+		ExpiresAt: sb.ExpiresAt.Format(time.RFC3339),
+	}
+}
+
+func sandboxFromDTO(d sandboxDTO) (*sandbox.Sandbox, error) {
+	startedAt, err := time.Parse(time.RFC3339, d.StartedAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse started_at: %w", err)
+	}
+	expiresAt, err := time.Parse(time.RFC3339, d.ExpiresAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse expires_at: %w", err)
+	}
+	return &sandbox.Sandbox{
+		Kind: sandbox.Kind(d.Kind),
+		Slug: d.Slug,
+		Credentials: sandbox.Credentials{
+			AccessKey: d.Creds.AccessKey,
+			SecretKey: d.Creds.SecretKey,
+		},
+		Console: sandbox.Console{
+			URL:      d.Console.URL,
+			Username: d.Console.Username,
+			Password: d.Console.Password,
+		},
+		Identity: sandbox.Identity{
+			Account: d.Identity.Account,
+			UserID:  d.Identity.UserID,
+			ARN:     d.Identity.ARN,
+			Region:  d.Identity.Region,
+		},
+		StartedAt: startedAt,
+		ExpiresAt: expiresAt,
 	}, nil
 }

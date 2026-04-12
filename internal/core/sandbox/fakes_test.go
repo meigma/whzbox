@@ -94,6 +94,36 @@ func (f *fakeProvider) VerifyCredentials(_ context.Context, _ sandbox.Credential
 	return f.verifyResult, f.verifyErr
 }
 
+// fakeStore is an in-memory sandbox.Store for unit tests.
+type fakeStore struct {
+	loaded    map[sandbox.Kind]*sandbox.Sandbox
+	loadErr   error
+	saveErr   error
+	clearErr  error
+	saved     *sandbox.Sandbox
+	saveCalls int
+	clearAll  int
+}
+
+func (f *fakeStore) Load(_ context.Context, kind sandbox.Kind) (*sandbox.Sandbox, bool, error) {
+	if f.loadErr != nil {
+		return nil, false, f.loadErr
+	}
+	sb, ok := f.loaded[kind]
+	return sb, ok, nil
+}
+
+func (f *fakeStore) Save(_ context.Context, sb *sandbox.Sandbox) error {
+	f.saveCalls++
+	f.saved = sb
+	return f.saveErr
+}
+
+func (f *fakeStore) ClearAll(_ context.Context) error {
+	f.clearAll++
+	return f.clearErr
+}
+
 // sampleSandbox builds a Sandbox that looks like what a real Manager
 // would return from Create (credentials + console, no identity).
 func sampleSandbox() *sandbox.Sandbox {

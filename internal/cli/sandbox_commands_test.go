@@ -70,6 +70,17 @@ type stubAuth struct {
 	err error
 }
 
+// stubSandboxStore is a no-op sandbox.Store: load reports nothing
+// cached, save/clear succeed silently. CLI tests don't exercise
+// cache reuse.
+type stubSandboxStore struct{}
+
+func (stubSandboxStore) Load(_ context.Context, _ sandbox.Kind) (*sandbox.Sandbox, bool, error) {
+	return nil, false, nil
+}
+func (stubSandboxStore) Save(_ context.Context, _ *sandbox.Sandbox) error { return nil }
+func (stubSandboxStore) ClearAll(_ context.Context) error                 { return nil }
+
 func (s *stubAuth) EnsureValid(_ context.Context) (session.Tokens, error) {
 	if s.err != nil {
 		return session.Tokens{}, s.err
@@ -82,6 +93,7 @@ func newSandboxTestApp(mgr *stubManager, ver *stubVerifier, opts ...func(*App)) 
 		&stubAuth{},
 		mgr,
 		map[sandbox.Kind]sandbox.Provider{sandbox.KindAWS: ver},
+		stubSandboxStore{},
 		clock.Real{},
 		nil,
 	)

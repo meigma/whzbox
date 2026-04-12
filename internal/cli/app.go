@@ -64,6 +64,7 @@ func NewApp(vp *viper.Viper) (*App, error) {
 		map[sandbox.Kind]sandbox.Provider{
 			sandbox.KindAWS: awsProv,
 		},
+		store.SandboxStore(),
 		realClock,
 		logger,
 	)

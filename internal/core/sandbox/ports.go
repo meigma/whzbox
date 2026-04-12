@@ -51,6 +51,23 @@ type Provider interface {
 	VerifyCredentials(ctx context.Context, creds Credentials) (Identity, error)
 }
 
+// Store caches provisioned sandboxes on disk so that a subsequent
+// `create <kind>` can reuse an already-live sandbox instead of asking
+// Whizlabs for a fresh one. The Whizlabs API has no endpoint for
+// refetching credentials of an active sandbox, so without this cache
+// the creds printed by `create` are lost the moment the user closes
+// the terminal.
+//
+// Load returns (nil, false, nil) when nothing is cached for the kind.
+// ClearAll removes every cached sandbox — there is only one active
+// sandbox per Whizlabs account, so a successful Destroy clears all
+// kinds regardless of which one was destroyed.
+type Store interface {
+	Load(ctx context.Context, kind Kind) (*Sandbox, bool, error)
+	Save(ctx context.Context, sb *Sandbox) error
+	ClearAll(ctx context.Context) error
+}
+
 // SessionAuthorizer is the narrow slice of session.Service that the
 // sandbox service depends on. Declaring it here (rather than depending
 // on *session.Service directly) keeps sandbox unit tests free of fake
