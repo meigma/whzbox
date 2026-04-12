@@ -62,7 +62,7 @@ jobs:
         with:
           distribution: goreleaser
           version: v2.14.3
-          args: release --snapshot --clean
+          args: release --snapshot --clean --skip=sign
 
       - name: Save Go Caches
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.go-cache-restore.outputs.cache-hit != 'true'
