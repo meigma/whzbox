@@ -267,7 +267,12 @@ func TestClient_Create_InvalidTimesUseFallbackWindow(t *testing.T) {
 		t.Fatalf("fallback timestamps should be non-zero: start=%v end=%v", sb.StartedAt, sb.ExpiresAt)
 	}
 	if sb.StartedAt.Before(before) || sb.StartedAt.After(after.Add(time.Second)) {
-		t.Errorf("fallback start not based on local create time: got %v, want between %v and %v", sb.StartedAt, before, after)
+		t.Errorf(
+			"fallback start not based on local create time: got %v, want between %v and %v",
+			sb.StartedAt,
+			before,
+			after,
+		)
 	}
 	if got := sb.ExpiresAt.Sub(sb.StartedAt); got != 2*time.Hour {
 		t.Errorf("fallback expiry should use rounded duration: got %v, want %v", got, 2*time.Hour)
