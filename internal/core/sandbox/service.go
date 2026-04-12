@@ -21,6 +21,7 @@ type Service struct {
 	session   SessionAuthorizer
 	manager   Manager
 	providers map[Kind]Provider
+	store     Store
 	clock     clock.Clock
 	logger    *slog.Logger
 }
@@ -33,6 +34,7 @@ func NewService(
 	auth SessionAuthorizer,
 	manager Manager,
 	providers map[Kind]Provider,
+	store Store,
 	c clock.Clock,
 	logger *slog.Logger,
 ) *Service {
@@ -43,6 +45,7 @@ func NewService(
 		session:   auth,
 		manager:   manager,
 		providers: providers,
+		store:     store,
 		clock:     c,
 		logger:    logger,
 	}
@@ -73,6 +76,14 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 		return nil, fmt.Errorf("%w: %q", ErrUnknownKind, kind)
 	}
 
+	if cached, hit, lerr := s.store.Load(ctx, kind); lerr != nil {
+		s.logger.WarnContext(ctx, "sandbox cache load failed; continuing without reuse", "err", lerr)
+	} else if hit && cached.ExpiresAt.After(s.clock.Now()) {
+		s.logger.InfoContext(ctx, "reusing active sandbox",
+			"kind", cached.Kind, "expires_at", cached.ExpiresAt)
+		return cached, nil
+	}
+
 	tokens, err := s.session.EnsureValid(ctx)
 	if err != nil {
 		return nil, err
@@ -100,6 +111,18 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 	}
 
 	identity, verr := prov.VerifyCredentials(ctx, sb.Credentials)
+	if verr == nil {
+		sb.Identity = identity
+	}
+
+	// Cache the provisioned sandbox so a subsequent create can reuse
+	// it. The upstream creds are real and billed against the account
+	// even when verification fails, so we cache either way. A cache
+	// write failure must not mask the successful provision.
+	if cerr := s.store.Save(ctx, sb); cerr != nil {
+		s.logger.WarnContext(ctx, "failed to cache sandbox", "err", cerr)
+	}
+
 	if verr != nil {
 		// Return the sandbox so the CLI can still render the
 		// credentials — verification failure is a warning, not a
@@ -107,7 +130,6 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 		// caller can errors.Is it.
 		return sb, fmt.Errorf("%w: %w", ErrVerificationFailed, verr)
 	}
-	sb.Identity = identity
 	return sb, nil
 }
 
@@ -126,6 +148,9 @@ func (s *Service) Destroy(ctx context.Context) error {
 			return err
 		}
 		return fmt.Errorf("%w: destroy sandbox: %w", ErrProvider, err)
+	}
+	if cerr := s.store.ClearAll(ctx); cerr != nil {
+		s.logger.WarnContext(ctx, "failed to clear sandbox cache", "err", cerr)
 	}
 	s.logger.InfoContext(ctx, "sandbox destroyed")
 	return nil

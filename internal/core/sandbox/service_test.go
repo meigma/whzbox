@@ -11,12 +11,14 @@ import (
 	"github.com/meigma/whzbox/internal/core/session"
 )
 
-// testRig bundles the three port fakes + a clock so each test can
+// testRig bundles the four port fakes + a clock so each test can
 // wire a Service with minimal boilerplate.
 type testRig struct {
 	auth     *fakeAuth
 	manager  *fakeManager
 	provider *fakeProvider
+	store    *fakeStore
+	clock    *clock.Fake
 	svc      *sandbox.Service
 }
 
@@ -25,14 +27,17 @@ func newRig(t *testing.T) *testRig {
 	prov := &fakeProvider{kind: sandbox.KindAWS, slug: "aws-sandbox"}
 	auth := &fakeAuth{tokens: session.Tokens{AccessToken: "test-token"}}
 	mgr := &fakeManager{}
+	store := &fakeStore{}
+	clk := &clock.Fake{T: time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)}
 	svc := sandbox.NewService(
 		auth,
 		mgr,
 		map[sandbox.Kind]sandbox.Provider{sandbox.KindAWS: prov},
-		&clock.Fake{T: time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)},
+		store,
+		clk,
 		nil,
 	)
-	return &testRig{auth: auth, manager: mgr, provider: prov, svc: svc}
+	return &testRig{auth: auth, manager: mgr, provider: prov, store: store, clock: clk, svc: svc}
 }
 
 // -----------------------------------------------------------------------------
@@ -233,6 +238,129 @@ func TestService_Create_VerifyFails_SandboxStillReturned(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
+// Create — sandbox cache
+// -----------------------------------------------------------------------------
+
+func TestService_Create_CachesSandboxOnSuccess(t *testing.T) {
+	r := newRig(t)
+	r.manager.createResult = sampleSandbox()
+	r.provider.verifyResult = sampleIdentity()
+
+	got, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if r.store.saveCalls != 1 {
+		t.Errorf("store.Save calls: got %d, want 1", r.store.saveCalls)
+	}
+	if r.store.saved == nil || r.store.saved.Credentials.AccessKey != got.Credentials.AccessKey {
+		t.Errorf("cached sandbox mismatch: %+v", r.store.saved)
+	}
+	if r.store.saved.Identity.Account == "" {
+		t.Error("cached sandbox should carry verified identity")
+	}
+}
+
+func TestService_Create_CachesSandboxOnVerifyFailure(t *testing.T) {
+	// Creds are real and already billed — cache them even if verify fails.
+	r := newRig(t)
+	r.manager.createResult = sampleSandbox()
+	r.provider.verifyErr = errors.New("InvalidClientTokenId")
+
+	_, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
+	if !errors.Is(err, sandbox.ErrVerificationFailed) {
+		t.Fatalf("Create: %v", err)
+	}
+	if r.store.saveCalls != 1 {
+		t.Errorf("store.Save should be called even on verify failure: got %d", r.store.saveCalls)
+	}
+}
+
+func TestService_Create_ReusesCachedSandbox(t *testing.T) {
+	r := newRig(t)
+	cached := sampleSandbox()
+	cached.Kind = sandbox.KindAWS
+	cached.Slug = "aws-sandbox"
+	cached.Identity = sampleIdentity()
+	// ExpiresAt = clock.Now() + 1h (clock is at 2026-04-11 12:00 UTC, sandbox
+	// expires at 13:00 UTC — still valid).
+	r.store.loaded = map[sandbox.Kind]*sandbox.Sandbox{sandbox.KindAWS: cached}
+
+	got, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if got != cached {
+		t.Errorf("expected cached sandbox to be returned, got %+v", got)
+	}
+	// No upstream calls should have been made.
+	if r.auth.calls != 0 {
+		t.Errorf("auth should not be called on cache hit: %d", r.auth.calls)
+	}
+	if r.manager.createCalls != 0 {
+		t.Errorf("manager.Create should not be called on cache hit: %d", r.manager.createCalls)
+	}
+	if r.provider.verifyCalls != 0 {
+		t.Errorf("verify should not re-run on cache hit: %d", r.provider.verifyCalls)
+	}
+	if r.store.saveCalls != 0 {
+		t.Errorf("store.Save should not be called on cache hit: %d", r.store.saveCalls)
+	}
+}
+
+func TestService_Create_IgnoresExpiredCache(t *testing.T) {
+	r := newRig(t)
+	cached := sampleSandbox()
+	// Expired 1 minute ago relative to the fake clock.
+	cached.ExpiresAt = r.clock.T.Add(-time.Minute)
+	r.store.loaded = map[sandbox.Kind]*sandbox.Sandbox{sandbox.KindAWS: cached}
+	r.manager.createResult = sampleSandbox()
+	r.provider.verifyResult = sampleIdentity()
+
+	_, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	// Expired cache → full provision + overwrite save.
+	if r.manager.createCalls != 1 {
+		t.Errorf("manager.Create should run when cache is expired: %d", r.manager.createCalls)
+	}
+	if r.store.saveCalls != 1 {
+		t.Errorf("fresh sandbox should be cached: %d saves", r.store.saveCalls)
+	}
+}
+
+func TestService_Create_SaveErrorDoesNotMaskSuccess(t *testing.T) {
+	r := newRig(t)
+	r.manager.createResult = sampleSandbox()
+	r.provider.verifyResult = sampleIdentity()
+	r.store.saveErr = errors.New("disk full")
+
+	got, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
+	if err != nil {
+		t.Errorf("Create should succeed despite cache save failure: %v", err)
+	}
+	if got == nil {
+		t.Fatal("Create returned nil sandbox despite a real provision")
+	}
+}
+
+func TestService_Create_LoadErrorFallsThroughToFresh(t *testing.T) {
+	r := newRig(t)
+	r.store.loadErr = errors.New("cache read failed")
+	r.manager.createResult = sampleSandbox()
+	r.provider.verifyResult = sampleIdentity()
+
+	_, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
+	if err != nil {
+		t.Fatalf("Create should succeed on cache-load error: %v", err)
+	}
+	if r.manager.createCalls != 1 {
+		t.Errorf("fresh provision expected when cache load errors: %d", r.manager.createCalls)
+	}
+}
+
+// -----------------------------------------------------------------------------
 // Destroy
 // -----------------------------------------------------------------------------
 
@@ -244,6 +372,21 @@ func TestService_Destroy_HappyPath(t *testing.T) {
 	}
 	if r.manager.destroyCalls != 1 {
 		t.Errorf("destroy calls: got %d, want 1", r.manager.destroyCalls)
+	}
+	if r.store.clearAll != 1 {
+		t.Errorf("store.ClearAll calls: got %d, want 1", r.store.clearAll)
+	}
+}
+
+func TestService_Destroy_NoActiveSandbox_DoesNotClearCache(t *testing.T) {
+	// If Whizlabs says "nothing to destroy", we shouldn't touch the
+	// local cache either — the Destroy is effectively a no-op.
+	r := newRig(t)
+	r.manager.destroyErr = sandbox.ErrNoActiveSandbox
+
+	_ = r.svc.Destroy(context.Background())
+	if r.store.clearAll != 0 {
+		t.Errorf("ClearAll should not run on ErrNoActiveSandbox: %d", r.store.clearAll)
 	}
 }
 
