@@ -1,0 +1,24 @@
+# Root --help lists every subcommand and exits 0.
+env WHZBOX_STATE_DIR=$WORK/state
+exec whzbox --help
+stdout 'Usage:'
+stdout 'Available Commands:'
+stdout 'create'
+stdout 'destroy'
+stdout 'status'
+stdout 'login'
+stdout 'logout'
+stdout 'version'
+
+# Root --version prints build info via cobra's built-in.
+exec whzbox --version
+stdout 'whzbox'
+
+# Subcommand help works too.
+exec whzbox create --help
+stdout 'create <provider>'
+stdout 'duration'
+stdout '1h-9h'
+
+exec whzbox destroy --help
+stdout '--yes'

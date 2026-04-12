@@ -1,0 +1,6 @@
+# Non-interactive login must fail fast. testscript's stdin is a pipe,
+# not a TTY, so ui.IsInteractive returns false and the prompt adapter
+# returns session.ErrPromptUnavailable -> exit 5.
+env WHZBOX_STATE_DIR=$WORK/state
+! exec whzbox login
+stderr 'no interactive terminal'

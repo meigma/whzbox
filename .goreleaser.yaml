@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: whzbox
+
+gomod:
+  proxy: true
+  env:
+    - GOPROXY=https://proxy.golang.org,direct
+    - GOSUMDB=sum.golang.org
+
+before:
+  hooks:
+    - go test -race ./...
+
+builds:
+  - id: whzbox
+    main: ./cmd/whzbox
+    binary: whzbox
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -buildid=
+      - -X github.com/meigma/whzbox/internal/cli.Version={{ .Version }}
+      - -X github.com/meigma/whzbox/internal/cli.Commit={{ .FullCommit }}
+      - -X github.com/meigma/whzbox/internal/cli.BuildTime={{ .Date }}
+
+archives:
+  - id: whzbox
+    ids:
+      - whzbox
+    formats:
+      - tar.gz
+    files:
+      - README.md
+      - LICENSE*
+      - SECURITY.md
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+
+snapshot:
+  version_template: "{{ .Tag }}-dev"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  draft: false
+  prerelease: auto
+  mode: keep-existing
+  header: |
+    ## whzbox {{ .Tag }}
+
+    Install on macOS or Linux:
+
+    ```
+    curl -sSL https://github.com/meigma/whzbox/releases/download/{{ .Tag }}/whzbox_{{ .Version }}_$(uname -s)_$(uname -m).tar.gz | tar xz
+    ```
+  footer: |
+    ## Verification
+
+    ```bash
+    cosign verify-blob \
+      --bundle checksums.txt.sigstore.json \
+      --certificate-identity "https://github.com/{{ .Env.GITHUB_REPOSITORY }}/.github/workflows/release.yml@refs/tags/{{ .Tag }}" \
+      --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+      checksums.txt
+    sha256sum -c checksums.txt --ignore-missing
+    ```

@@ -1,0 +1,9 @@
+# destroy without --yes in a non-TTY environment must fail fast instead
+# of hanging on the confirm prompt.
+env WHZBOX_STATE_DIR=$WORK/state
+! exec whzbox destroy
+stderr 'no interactive terminal'
+
+# With --yes the confirm is skipped entirely; without a session the
+# command fails on the auth check rather than the prompt check.
+! exec whzbox destroy --yes

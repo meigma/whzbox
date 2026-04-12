@@ -1,0 +1,11 @@
+# https://moonrepo.dev/docs/config/toolchain
+$schema: 'https://moonrepo.dev/schemas/toolchain.json'
+
+proto:
+  version: '0.55.4'
+
+go:
+  version: '1.26.2'
+  workspaces: false
+  bins:
+    - 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4'

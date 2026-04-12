@@ -1,0 +1,10 @@
+# whzbox status with an empty state dir reports "not logged in"
+# without touching the network.
+env WHZBOX_STATE_DIR=$WORK/state
+exec whzbox status
+stdout 'Session'
+stdout '\(not logged in\)'
+! stdout 'Active sandbox'
+
+# No logs should appear on stderr for a clean read-only call.
+! stderr .

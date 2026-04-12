@@ -1,0 +1,10 @@
+# version subcommand prints structured build info.
+# Without ldflags the defaults are "dev", "none", "unknown".
+env WHZBOX_STATE_DIR=$WORK/state
+exec whzbox version
+stdout 'whzbox dev'
+stdout 'none'
+stdout 'unknown'
+
+# stderr should be empty on a successful version call.
+! stderr .

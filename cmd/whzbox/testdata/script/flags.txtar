@@ -1,0 +1,26 @@
+# Global flags are parsed and surfaced on every subcommand.
+env WHZBOX_STATE_DIR=$WORK/state
+
+# -q still produces the version line (stdout) but suppresses any
+# info-level log chatter (stderr stays empty).
+exec whzbox -q version
+stdout 'whzbox dev'
+
+# -vv enables debug logs. The version command emits a debug line.
+exec whzbox -vv version
+stdout 'whzbox dev'
+stderr 'DEBUG'
+
+# --no-color is accepted and produces plain output.
+exec whzbox --no-color version
+stdout 'whzbox'
+
+# --log-level error suppresses info but still emits errors; with no
+# error in the flow, stderr is empty.
+exec whzbox --log-level error version
+stdout 'whzbox'
+! stderr .
+
+# Unknown flags should exit non-zero with a clear message.
+! exec whzbox --bogus
+stderr 'unknown flag'

@@ -1,0 +1,21 @@
+# Moon
+.moon/cache/
+.moon/docker/
+
+# Build artifacts
+/whzbox
+/dist/
+coverage.out
+coverage.html
+
+# Local environment
+.env
+.envrc
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
