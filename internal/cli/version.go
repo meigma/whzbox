@@ -31,8 +31,6 @@ func newVersionCommand(app **App) *cobra.Command {
 			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "whzbox %s\n", BuildString()); err != nil {
 				return err
 			}
-			// Demonstrate the logger is wired; debug levels will surface
-			// this when the user runs with -vv or --log-level debug.
 			if app != nil && *app != nil && (*app).Logger != nil {
 				(*app).Logger.Debug("version command invoked",
 					"version", Version,

@@ -27,13 +27,9 @@ func newCreateCommand(app **App) *cobra.Command {
 
 			sb, err := (*app).Sandbox.Create(cmd.Context(), kind, duration)
 			if err != nil {
-				// Verification failure is non-destructive: the sandbox
-				// is real and the user still wants the creds. Render
-				// the box, warn about the verification error, and exit 0.
 				if errors.Is(err, sandbox.ErrVerificationFailed) && sb != nil {
 					ui.RenderSandbox(cmd.OutOrStdout(), sb)
 					(*app).Logger.Warn("credentials not verified; use with caution", "err", err)
-					return err
 				}
 				return err
 			}
