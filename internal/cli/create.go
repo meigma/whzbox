@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"io"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -28,15 +29,26 @@ func newCreateCommand(app **App) *cobra.Command {
 			sb, err := (*app).Sandbox.Create(cmd.Context(), kind, duration)
 			if err != nil {
 				if errors.Is(err, sandbox.ErrVerificationFailed) && sb != nil {
-					ui.RenderSandbox(cmd.OutOrStdout(), sb)
+					if rerr := renderSandbox(*app, cmd.OutOrStdout(), sb); rerr != nil {
+						return rerr
+					}
 					(*app).Logger.Warn("credentials not verified; use with caution", "err", err)
 				}
 				return err
 			}
-			ui.RenderSandbox(cmd.OutOrStdout(), sb)
-			return nil
+			return renderSandbox(*app, cmd.OutOrStdout(), sb)
 		},
 	}
 	cmd.Flags().DurationVar(&duration, "duration", time.Hour, "sandbox lifetime (1h-9h)")
 	return cmd
+}
+
+// renderSandbox dispatches to the JSON or styled renderer based on
+// config. Used by create; list has its own list-aware renderer.
+func renderSandbox(app *App, w io.Writer, sb *sandbox.Sandbox) error {
+	if app.Config.JSON {
+		return ui.RenderSandboxJSON(w, sb)
+	}
+	ui.RenderSandbox(w, sb)
+	return nil
 }

@@ -37,11 +37,14 @@ func NewRootCommand() *cobra.Command {
 	cmd.PersistentFlags().BoolP("quiet", "q", false, "suppress non-essential output")
 	cmd.PersistentFlags().Bool("no-color", false, "disable colored output")
 	cmd.PersistentFlags().Bool("yes", false, "skip confirmation prompts")
+	cmd.PersistentFlags().Bool("json", false, "emit machine-readable JSON instead of styled output")
 
 	cmd.AddCommand(
 		newCreateCommand(&app),
 		newDestroyCommand(&app),
 		newStatusCommand(&app),
+		newListCommand(&app),
+		newExecCommand(&app),
 		newLoginCommand(&app),
 		newLogoutCommand(&app),
 		newVersionCommand(&app),

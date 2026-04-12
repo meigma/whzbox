@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -16,7 +17,13 @@ import (
 func Run(ctx context.Context) int {
 	err := NewRootCommand().ExecuteContext(ctx)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
+		// A child from `whzbox exec` has already written to its own
+		// stdio; adding "Error: child process exited with code N"
+		// here would be noise.
+		var execChild *ExecChildError
+		if !errors.As(err, &execChild) {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+		}
 	}
 	return ExitCode(err)
 }

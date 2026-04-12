@@ -94,6 +94,13 @@ func (f *fakeProvider) VerifyCredentials(_ context.Context, _ sandbox.Credential
 	return f.verifyResult, f.verifyErr
 }
 
+func (f *fakeProvider) Env(sb *sandbox.Sandbox) []string {
+	if sb == nil {
+		return nil
+	}
+	return []string{"FAKE_ACCESS=" + sb.Credentials.AccessKey}
+}
+
 // fakeStore is an in-memory sandbox.Store for unit tests.
 type fakeStore struct {
 	loaded    map[sandbox.Kind]*sandbox.Sandbox
@@ -111,6 +118,17 @@ func (f *fakeStore) Load(_ context.Context, kind sandbox.Kind) (*sandbox.Sandbox
 	}
 	sb, ok := f.loaded[kind]
 	return sb, ok, nil
+}
+
+func (f *fakeStore) LoadAll(_ context.Context) ([]*sandbox.Sandbox, error) {
+	if f.loadErr != nil {
+		return nil, f.loadErr
+	}
+	out := make([]*sandbox.Sandbox, 0, len(f.loaded))
+	for _, sb := range f.loaded {
+		out = append(out, sb)
+	}
+	return out, nil
 }
 
 func (f *fakeStore) Save(_ context.Context, sb *sandbox.Sandbox) error {
