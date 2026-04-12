@@ -256,6 +256,9 @@ func TestService_Create_CachesSandboxOnSuccess(t *testing.T) {
 	if r.store.saved == nil || r.store.saved.Credentials.AccessKey != got.Credentials.AccessKey {
 		t.Errorf("cached sandbox mismatch: %+v", r.store.saved)
 	}
+	if !r.store.saved.Verified {
+		t.Error("cached sandbox should be marked verified on successful verification")
+	}
 	if r.store.saved.Identity.Account == "" {
 		t.Error("cached sandbox should carry verified identity")
 	}
@@ -274,6 +277,9 @@ func TestService_Create_CachesSandboxOnVerifyFailure(t *testing.T) {
 	if r.store.saveCalls != 1 {
 		t.Errorf("store.Save should be called even on verify failure: got %d", r.store.saveCalls)
 	}
+	if r.store.saved == nil || r.store.saved.Verified {
+		t.Errorf("cached sandbox should remain unverified after failed verification: %+v", r.store.saved)
+	}
 }
 
 func TestService_Create_ReusesCachedSandbox(t *testing.T) {
@@ -281,6 +287,7 @@ func TestService_Create_ReusesCachedSandbox(t *testing.T) {
 	cached := sampleSandbox()
 	cached.Kind = sandbox.KindAWS
 	cached.Slug = "aws-sandbox"
+	cached.Verified = true
 	cached.Identity = sampleIdentity()
 	// ExpiresAt = clock.Now() + 1h (clock is at 2026-04-11 12:00 UTC, sandbox
 	// expires at 13:00 UTC — still valid).
@@ -305,6 +312,79 @@ func TestService_Create_ReusesCachedSandbox(t *testing.T) {
 	}
 	if r.store.saveCalls != 0 {
 		t.Errorf("store.Save should not be called on cache hit: %d", r.store.saveCalls)
+	}
+}
+
+func TestService_Create_ReverifiesUnverifiedCachedSandbox(t *testing.T) {
+	r := newRig(t)
+	cached := sampleSandbox()
+	cached.Kind = sandbox.KindAWS
+	cached.Slug = "aws-sandbox"
+	cached.Verified = false
+	r.store.loaded = map[sandbox.Kind]*sandbox.Sandbox{sandbox.KindAWS: cached}
+	r.provider.verifyResult = sampleIdentity()
+
+	got, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if got != cached {
+		t.Fatalf("expected cached sandbox, got %+v", got)
+	}
+	if !got.Verified {
+		t.Error("cached sandbox should be marked verified after re-check")
+	}
+	if got.Identity.Account != "999999999999" {
+		t.Errorf("identity not refreshed: %+v", got.Identity)
+	}
+	if r.auth.calls != 0 {
+		t.Errorf("auth should not be called for cached sandbox re-check: %d", r.auth.calls)
+	}
+	if r.manager.createCalls != 0 {
+		t.Errorf("manager.Create should not be called for cached sandbox re-check: %d", r.manager.createCalls)
+	}
+	if r.provider.verifyCalls != 1 {
+		t.Errorf("verify should run once for unverified cache: %d", r.provider.verifyCalls)
+	}
+	if r.store.saveCalls != 1 {
+		t.Errorf("store.Save should persist the upgraded cache entry: %d", r.store.saveCalls)
+	}
+}
+
+func TestService_Create_ReverifyFailureStaysExplicit(t *testing.T) {
+	r := newRig(t)
+	cached := sampleSandbox()
+	cached.Kind = sandbox.KindAWS
+	cached.Slug = "aws-sandbox"
+	cached.Verified = false
+	r.store.loaded = map[sandbox.Kind]*sandbox.Sandbox{sandbox.KindAWS: cached}
+	bang := errors.New("InvalidClientTokenId")
+	r.provider.verifyErr = bang
+
+	got, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
+	if got != cached {
+		t.Fatalf("expected cached sandbox, got %+v", got)
+	}
+	if !errors.Is(err, sandbox.ErrVerificationFailed) {
+		t.Fatalf("error: got %v, want ErrVerificationFailed", err)
+	}
+	if !errors.Is(err, bang) {
+		t.Errorf("error: got %v, want wrapped %v", err, bang)
+	}
+	if got.Verified {
+		t.Error("cached sandbox should remain unverified after failed re-check")
+	}
+	if r.auth.calls != 0 {
+		t.Errorf("auth should not be called for cached sandbox re-check: %d", r.auth.calls)
+	}
+	if r.manager.createCalls != 0 {
+		t.Errorf("manager.Create should not be called after failed re-check: %d", r.manager.createCalls)
+	}
+	if r.provider.verifyCalls != 1 {
+		t.Errorf("verify should run once for unverified cache: %d", r.provider.verifyCalls)
+	}
+	if r.store.saveCalls != 1 {
+		t.Errorf("store.Save should persist the unverified cache entry: %d", r.store.saveCalls)
 	}
 }
 

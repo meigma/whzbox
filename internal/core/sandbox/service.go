@@ -76,11 +76,9 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 		return nil, fmt.Errorf("%w: %q", ErrUnknownKind, kind)
 	}
 
-	if cached, hit, lerr := s.store.Load(ctx, kind); lerr != nil {
-		s.logger.WarnContext(ctx, "sandbox cache load failed; continuing without reuse", "err", lerr)
-	} else if hit && cached.ExpiresAt.After(s.clock.Now()) {
-		s.logger.InfoContext(ctx, "reusing active sandbox",
-			"kind", cached.Kind, "expires_at", cached.ExpiresAt)
+	if cached, found, err := s.loadReusableSandbox(ctx, kind, prov); err != nil {
+		return cached, err
+	} else if found {
 		return cached, nil
 	}
 
@@ -113,6 +111,9 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 	identity, verr := prov.VerifyCredentials(ctx, sb.Credentials)
 	if verr == nil {
 		sb.Identity = identity
+		sb.Verified = true
+	} else {
+		sb.Verified = false
 	}
 
 	// Cache the provisioned sandbox so a subsequent create can reuse
@@ -131,6 +132,51 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 		return sb, fmt.Errorf("%w: %w", ErrVerificationFailed, verr)
 	}
 	return sb, nil
+}
+
+func (s *Service) loadReusableSandbox(ctx context.Context, kind Kind, prov Provider) (*Sandbox, bool, error) {
+	cached, hit, err := s.store.Load(ctx, kind)
+	if err != nil {
+		s.logger.WarnContext(ctx, "sandbox cache load failed; continuing without reuse", "err", err)
+		return nil, false, nil
+	}
+	if !hit || !cached.ExpiresAt.After(s.clock.Now()) {
+		return nil, false, nil
+	}
+	if cached.Verified {
+		s.logSandboxReuse(ctx, cached)
+		return cached, true, nil
+	}
+	return s.reverifyCachedSandbox(ctx, cached, prov)
+}
+
+func (s *Service) reverifyCachedSandbox(ctx context.Context, cached *Sandbox, prov Provider) (*Sandbox, bool, error) {
+	s.logger.InfoContext(ctx, "re-verifying cached sandbox",
+		"kind", cached.Kind, "expires_at", cached.ExpiresAt)
+
+	identity, err := prov.VerifyCredentials(ctx, cached.Credentials)
+	if err != nil {
+		cached.Verified = false
+		s.saveSandboxCache(ctx, cached, "failed to update cached sandbox")
+		return cached, false, fmt.Errorf("%w: %w", ErrVerificationFailed, err)
+	}
+
+	cached.Identity = identity
+	cached.Verified = true
+	s.saveSandboxCache(ctx, cached, "failed to update cached sandbox")
+	s.logSandboxReuse(ctx, cached)
+	return cached, true, nil
+}
+
+func (s *Service) saveSandboxCache(ctx context.Context, sb *Sandbox, message string) {
+	if err := s.store.Save(ctx, sb); err != nil {
+		s.logger.WarnContext(ctx, message, "err", err)
+	}
+}
+
+func (s *Service) logSandboxReuse(ctx context.Context, sb *Sandbox) {
+	s.logger.InfoContext(ctx, "reusing active sandbox",
+		"kind", sb.Kind, "expires_at", sb.ExpiresAt)
 }
 
 // Destroy tears down the user's currently active sandbox. It returns

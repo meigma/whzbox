@@ -61,6 +61,7 @@ func (c *Client) Create(
 	if err != nil {
 		return nil, err
 	}
+	requestedDuration := time.Duration(hours) * time.Hour
 
 	playJWT, err := c.exchangeForPlayToken(ctx, tokens)
 	if err != nil {
@@ -87,6 +88,7 @@ func (c *Client) Create(
 	if !env.Status || env.Data.AccessKey == "" {
 		return nil, fmt.Errorf("create sandbox: %s", env.Message)
 	}
+	startedAt, expiresAt := c.resolveSandboxTimes(ctx, env.Data.StartTime, env.Data.EndTime, requestedDuration)
 
 	return &sandbox.Sandbox{
 		Slug: slug,
@@ -99,8 +101,8 @@ func (c *Client) Create(
 			Username: env.Data.Username,
 			Password: env.Data.Password,
 		},
-		StartedAt: parseWhizlabsTime(env.Data.StartTime),
-		ExpiresAt: parseWhizlabsTime(env.Data.EndTime),
+		StartedAt: startedAt,
+		ExpiresAt: expiresAt,
 	}, nil
 }
 
@@ -213,11 +215,34 @@ func durationToHours(d time.Duration) (int, error) {
 }
 
 // parseWhizlabsTime parses the non-standard "2006-01-02 15:04:05" times
-// the play API returns. Unparseable inputs produce zero time values.
-func parseWhizlabsTime(s string) time.Time {
+// the play API returns.
+func parseWhizlabsTime(s string) (time.Time, error) {
 	t, err := time.Parse("2006-01-02 15:04:05", s)
 	if err != nil {
-		return time.Time{}
+		return time.Time{}, err
 	}
-	return t.UTC()
+	return t.UTC(), nil
+}
+
+func (c *Client) resolveSandboxTimes(
+	ctx context.Context,
+	rawStart,
+	rawEnd string,
+	duration time.Duration,
+) (time.Time, time.Time) {
+	startedAt, startErr := parseWhizlabsTime(rawStart)
+	expiresAt, endErr := parseWhizlabsTime(rawEnd)
+	if startErr == nil && endErr == nil && expiresAt.After(startedAt) {
+		return startedAt, expiresAt
+	}
+
+	fallbackStart := time.Now().UTC()
+	fallbackEnd := fallbackStart.Add(duration)
+	c.logger.WarnContext(ctx, "whizlabs returned invalid sandbox timestamps; using local fallback",
+		"start_time", rawStart,
+		"end_time", rawEnd,
+		"fallback_start", fallbackStart,
+		"fallback_end", fallbackEnd,
+	)
+	return fallbackStart, fallbackEnd
 }
