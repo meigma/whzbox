@@ -156,6 +156,33 @@ func (s *Service) Destroy(ctx context.Context) error {
 	return nil
 }
 
+// List returns every cached sandbox. Cache-only: no session refresh,
+// no broker call. Entries with ExpiresAt in the past are included so
+// callers can classify them; filtering is the caller's choice.
+func (s *Service) List(ctx context.Context) ([]*Sandbox, error) {
+	return s.store.LoadAll(ctx)
+}
+
+// Load returns the cached sandbox for kind, or (nil, false, nil) when
+// nothing is cached. Cache-only — no session refresh, no re-verify.
+// Used by `exec` to target a specific provider.
+func (s *Service) Load(ctx context.Context, kind Kind) (*Sandbox, bool, error) {
+	return s.store.Load(ctx, kind)
+}
+
+// EnvFor returns the KEY=VALUE env-var pairs the sandbox's provider
+// wants injected into a child process. An unknown kind returns nil.
+func (s *Service) EnvFor(sb *Sandbox) []string {
+	if sb == nil {
+		return nil
+	}
+	prov, ok := s.providers[sb.Kind]
+	if !ok {
+		return nil
+	}
+	return prov.Env(sb)
+}
+
 // Status returns the user's currently active sandbox, or (nil, nil)
 // when there is nothing active.
 //

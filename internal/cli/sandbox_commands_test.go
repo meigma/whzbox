@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -64,6 +65,17 @@ func (s *stubVerifier) Slug() string       { return "aws-sandbox" }
 func (s *stubVerifier) VerifyCredentials(_ context.Context, _ sandbox.Credentials) (sandbox.Identity, error) {
 	return s.identity, s.err
 }
+func (s *stubVerifier) Env(sb *sandbox.Sandbox) []string {
+	if sb == nil {
+		return nil
+	}
+	return []string{
+		"AWS_ACCESS_KEY_ID=" + sb.Credentials.AccessKey,
+		"AWS_SECRET_ACCESS_KEY=" + sb.Credentials.SecretKey,
+		"AWS_REGION=" + sb.Identity.Region,
+		"AWS_DEFAULT_REGION=" + sb.Identity.Region,
+	}
+}
 
 // stubAuth is a SessionAuthorizer that always returns a valid Tokens.
 type stubAuth struct {
@@ -78,8 +90,9 @@ type stubSandboxStore struct{}
 func (stubSandboxStore) Load(_ context.Context, _ sandbox.Kind) (*sandbox.Sandbox, bool, error) {
 	return nil, false, nil
 }
-func (stubSandboxStore) Save(_ context.Context, _ *sandbox.Sandbox) error { return nil }
-func (stubSandboxStore) ClearAll(_ context.Context) error                 { return nil }
+func (stubSandboxStore) LoadAll(_ context.Context) ([]*sandbox.Sandbox, error) { return nil, nil }
+func (stubSandboxStore) Save(_ context.Context, _ *sandbox.Sandbox) error      { return nil }
+func (stubSandboxStore) ClearAll(_ context.Context) error                      { return nil }
 
 func (s *stubAuth) EnsureValid(_ context.Context) (session.Tokens, error) {
 	if s.err != nil {
@@ -175,6 +188,44 @@ func TestCreateCommand_VerificationFailure_StillRendersBox(t *testing.T) {
 	// The credential box must still be rendered.
 	if !strings.Contains(out.String(), "AKIA_TEST") {
 		t.Errorf("verification failure should still render box:\n%s", out.String())
+	}
+}
+
+func TestCreateCommand_JSON(t *testing.T) {
+	mgr := &stubManager{createResult: sampleCreated()}
+	ver := &stubVerifier{identity: sandbox.Identity{
+		Account: "111111111111",
+		UserID:  "AIDAT",
+		ARN:     "arn:aws:iam::111111111111:user/whiz_user",
+		Region:  "us-east-1",
+	}}
+	app := newSandboxTestApp(mgr, ver, func(a *App) {
+		a.Config.JSON = true
+	})
+
+	cmd := newCreateCommand(&app)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"aws"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, out.String())
+	}
+	creds, _ := got["credentials"].(map[string]any)
+	if creds["access_key"] != "AKIA_TEST" {
+		t.Errorf("access_key: got %v", creds["access_key"])
+	}
+	id, _ := got["identity"].(map[string]any)
+	if id["account"] != "111111111111" {
+		t.Errorf("account: got %v", id["account"])
+	}
+	if strings.Contains(out.String(), "whzbox destroy") {
+		t.Errorf("JSON output should not include the destroy footer:\n%s", out.String())
 	}
 }
 

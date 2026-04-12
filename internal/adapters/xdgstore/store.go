@@ -334,6 +334,49 @@ func (s *Store) LoadSandbox(ctx context.Context, kind sandbox.Kind) (*sandbox.Sa
 	return sb, true, nil
 }
 
+// LoadAllSandboxes returns every cached sandbox, in unspecified order.
+// A missing state file yields an empty slice. Unparsable individual
+// entries are skipped with a warning (mirroring LoadSandbox's
+// "ignore and proceed" policy), not surfaced as a hard error.
+func (s *Store) LoadAllSandboxes(ctx context.Context) ([]*sandbox.Sandbox, error) {
+	info, err := os.Stat(s.path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("stat state file: %w", err)
+	}
+	if m := info.Mode().Perm(); m != fileMode {
+		return nil, fmt.Errorf("state file %s has mode %v, want %v", s.path, m, fileMode)
+	}
+
+	data, err := os.ReadFile(s.path)
+	if err != nil {
+		return nil, fmt.Errorf("read state file: %w", err)
+	}
+	var f fileFormat
+	if uerr := json.Unmarshal(data, &f); uerr != nil {
+		s.logger.WarnContext(ctx, "state file is corrupt, ignoring cached sandboxes",
+			"path", s.path, "err", uerr)
+		return nil, nil
+	}
+	if f.Version != schemaVersion {
+		return nil, nil
+	}
+
+	out := make([]*sandbox.Sandbox, 0, len(f.Sandboxes))
+	for kind, dto := range f.Sandboxes {
+		sb, perr := sandboxFromDTO(dto)
+		if perr != nil {
+			s.logger.WarnContext(ctx, "cached sandbox is unparsable, ignoring",
+				"path", s.path, "kind", kind, "err", perr)
+			continue
+		}
+		out = append(out, sb)
+	}
+	return out, nil
+}
+
 // SaveSandbox writes sb into the cache keyed by its Kind, preserving
 // session tokens and any sandbox entries for other kinds.
 func (s *Store) SaveSandbox(_ context.Context, sb *sandbox.Sandbox) error {
@@ -375,6 +418,10 @@ type sandboxView struct{ s *Store }
 
 func (v sandboxView) Load(ctx context.Context, kind sandbox.Kind) (*sandbox.Sandbox, bool, error) {
 	return v.s.LoadSandbox(ctx, kind)
+}
+
+func (v sandboxView) LoadAll(ctx context.Context) ([]*sandbox.Sandbox, error) {
+	return v.s.LoadAllSandboxes(ctx)
 }
 
 func (v sandboxView) Save(ctx context.Context, sb *sandbox.Sandbox) error {

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -63,6 +64,115 @@ func RenderSandbox(w io.Writer, sb *sandbox.Sandbox) {
 
 	fpf(w, "%s\n\n", SandboxFrame().Render(body))
 	fpf(w, "Destroy with:  whzbox destroy\n")
+}
+
+// SandboxJSON is the machine-readable shape emitted by --json. It lives
+// in the ui package so that internal/core/sandbox stays free of
+// serialisation concerns.
+type SandboxJSON struct {
+	Kind        string       `json:"kind"`
+	Slug        string       `json:"slug"`
+	Credentials CredsJSON    `json:"credentials"`
+	Console     ConsoleJSON  `json:"console"`
+	Identity    IdentityJSON `json:"identity"`
+	StartedAt   time.Time    `json:"started_at"`
+	ExpiresAt   time.Time    `json:"expires_at"`
+}
+
+type CredsJSON struct {
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+}
+
+type ConsoleJSON struct {
+	URL      string `json:"url"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type IdentityJSON struct {
+	Account string `json:"account"`
+	UserID  string `json:"user_id"`
+	ARN     string `json:"arn"`
+	Region  string `json:"region"`
+}
+
+// sandboxToJSON converts the domain Sandbox into its JSON DTO.
+func sandboxToJSON(sb *sandbox.Sandbox) SandboxJSON {
+	return SandboxJSON{
+		Kind: string(sb.Kind),
+		Slug: sb.Slug,
+		Credentials: CredsJSON{
+			AccessKey: sb.Credentials.AccessKey,
+			SecretKey: sb.Credentials.SecretKey,
+		},
+		Console: ConsoleJSON{
+			URL:      sb.Console.URL,
+			Username: sb.Console.Username,
+			Password: sb.Console.Password,
+		},
+		Identity: IdentityJSON{
+			Account: sb.Identity.Account,
+			UserID:  sb.Identity.UserID,
+			ARN:     sb.Identity.ARN,
+			Region:  sb.Identity.Region,
+		},
+		StartedAt: sb.StartedAt,
+		ExpiresAt: sb.ExpiresAt,
+	}
+}
+
+// RenderSandboxJSON writes a single sandbox as indented JSON.
+func RenderSandboxJSON(w io.Writer, sb *sandbox.Sandbox) error {
+	if sb == nil {
+		_, err := fmt.Fprintln(w, "null")
+		return err
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(sandboxToJSON(sb))
+}
+
+// RenderSandboxList writes a compact table of cached sandboxes: one
+// row per entry, with a status column derived from the supplied "now".
+// An empty slice prints a "(no sandboxes cached)" marker.
+func RenderSandboxList(w io.Writer, sbs []*sandbox.Sandbox, now time.Time) {
+	if len(sbs) == 0 {
+		fpf(w, "(no sandboxes cached)\n")
+		return
+	}
+	fpf(w, "%-6s  %-14s  %-7s  %s\n", "KIND", "ACCOUNT", "STATUS", "EXPIRES")
+	for _, sb := range sbs {
+		if sb == nil {
+			continue
+		}
+		status := "active"
+		if !sb.ExpiresAt.After(now) {
+			status = "expired"
+		}
+		fpf(w, "%-6s  %-14s  %-7s  %s\n",
+			string(sb.Kind),
+			sb.Identity.Account,
+			status,
+			formatExpiry(sb.ExpiresAt),
+		)
+	}
+}
+
+// RenderSandboxListJSON writes a JSON array of sandboxes. A nil/empty
+// slice renders as "[]" so callers can pipe through jq without a null
+// special case.
+func RenderSandboxListJSON(w io.Writer, sbs []*sandbox.Sandbox) error {
+	out := make([]SandboxJSON, 0, len(sbs))
+	for _, sb := range sbs {
+		if sb == nil {
+			continue
+		}
+		out = append(out, sandboxToJSON(sb))
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
 
 // RenderStatus writes the status view (session info)

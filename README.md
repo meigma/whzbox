@@ -86,6 +86,8 @@ whzbox destroy --yes
 | `whzbox logout` | Clear the cached session |
 | `whzbox create <provider>` | Provision a sandbox, register ownership, verify credentials, render them |
 | `whzbox destroy` | Tear down the currently active sandbox |
+| `whzbox exec <provider> [-- cmd args...]` | Run a command (or drop into `$SHELL`) with the cached sandbox's env vars set |
+| `whzbox list` | List cached sandboxes (read-only) |
 | `whzbox status` | Show the cached session (read-only, never prompts) |
 | `whzbox version` | Print build info |
 | `whzbox completion <shell>` | Generate shell completions for bash / zsh / fish / powershell |
@@ -101,12 +103,42 @@ Run `whzbox <command> --help` for per-command flags.
 | `-q`, `--quiet` | — | `false` | Errors only |
 | `--no-color` | `WHZBOX_NO_COLOR`, `NO_COLOR` | auto | Disable coloured output |
 | `--yes` | — | `false` | Skip confirmation prompts (required for non-interactive `destroy`) |
+| `--json` | `WHZBOX_JSON` | `false` | Emit machine-readable JSON instead of styled output (applies to `create`, `list`) |
 
 ### create flags
 
 | Flag | Default | Purpose |
 |---|---|---|
 | `--duration` | `1h` | Sandbox lifetime, between 1h and 9h |
+
+### exec flags
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `-s`, `--shell` | `false` | Treat the single command argument as a shell string (passed to `sh -c`) |
+
+### Running commands in a sandbox
+
+`whzbox exec` injects the cached sandbox's credentials into a child
+process's environment:
+
+```sh
+# run a single argv (no shell involved)
+whzbox exec aws -- aws sts get-caller-identity
+
+# run a shell pipeline (-s wraps in sh -c)
+whzbox exec aws -s "aws s3 ls | head"
+
+# drop into an interactive subshell with AWS_* set
+whzbox exec aws
+```
+
+AWS sandboxes set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`AWS_REGION`, and `AWS_DEFAULT_REGION`. The child's exit code is
+propagated, so `whzbox exec aws -- false; echo $?` prints `1`.
+
+`whzbox exec` fails if no sandbox is cached for the provider; the error
+message tells you to run `whzbox create <provider>` first.
 
 ### Environment variables
 
@@ -147,8 +179,9 @@ Scripts can branch on these:
 whzbox works cleanly in pipelines — credentials go to **stdout**, logs and prompts to **stderr**:
 
 ```sh
-# Extract just the secret key to an env var
-secret=$(whzbox create aws | awk '/AWS_SECRET_ACCESS_KEY/ {print $NF}')
+# Extract fields from the JSON output with jq
+secret=$(whzbox create aws --json | jq -r .credentials.secret_key)
+account=$(whzbox list --json | jq -r '.[] | select(.kind=="aws") | .identity.account')
 
 # Non-interactive destroy with an explicit confirmation bypass
 whzbox destroy --yes

@@ -49,6 +49,10 @@ type Provider interface {
 	Kind() Kind
 	Slug() string
 	VerifyCredentials(ctx context.Context, creds Credentials) (Identity, error)
+	// Env returns the KEY=VALUE pairs to inject into a child process so
+	// that tooling for this kind picks up the sandbox credentials.
+	// Callers append these to os.Environ() before exec.
+	Env(sb *Sandbox) []string
 }
 
 // Store caches provisioned sandboxes on disk so that a subsequent
@@ -64,6 +68,9 @@ type Provider interface {
 // kinds regardless of which one was destroyed.
 type Store interface {
 	Load(ctx context.Context, kind Kind) (*Sandbox, bool, error)
+	// LoadAll returns every cached sandbox, in unspecified order.
+	// A missing store returns an empty slice with no error.
+	LoadAll(ctx context.Context) ([]*Sandbox, error)
 	Save(ctx context.Context, sb *Sandbox) error
 	ClearAll(ctx context.Context) error
 }

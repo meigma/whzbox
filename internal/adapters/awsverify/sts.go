@@ -123,6 +123,26 @@ func (v *STSVerifier) VerifyCredentials(ctx context.Context, creds sandbox.Crede
 	}, nil
 }
 
+// Env implements sandbox.Provider. It returns the AWS env-var pairs a
+// child process needs to use the sandbox credentials: the standard
+// programmatic keys plus both AWS_REGION (modern) and
+// AWS_DEFAULT_REGION (legacy-but-honoured by the AWS CLI).
+func (v *STSVerifier) Env(sb *sandbox.Sandbox) []string {
+	if sb == nil {
+		return nil
+	}
+	region := sb.Identity.Region
+	if region == "" {
+		region = v.region
+	}
+	return []string{
+		"AWS_ACCESS_KEY_ID=" + sb.Credentials.AccessKey,
+		"AWS_SECRET_ACCESS_KEY=" + sb.Credentials.SecretKey,
+		"AWS_REGION=" + region,
+		"AWS_DEFAULT_REGION=" + region,
+	}
+}
+
 // isRetryable reports whether an error from GetCallerIdentity represents
 // IAM propagation delay (which is worth retrying) versus a permanent
 // failure like AccessDenied (which is not).

@@ -31,6 +31,10 @@ type Config struct {
 	// AssumeYes skips interactive confirmation prompts.
 	AssumeYes bool `mapstructure:"yes"`
 
+	// JSON requests machine-readable JSON output instead of the styled
+	// terminal rendering.
+	JSON bool `mapstructure:"json"`
+
 	// StateDir overrides the directory where the session state file lives.
 	// Empty means "use the XDG default".
 	StateDir string `mapstructure:"state-dir"`
@@ -62,6 +66,7 @@ var envKeys = []string{ //nolint:gochecknoglobals // static config key registry
 	"quiet",
 	"no-color",
 	"yes",
+	"json",
 	"state-dir",
 	"whizlabs.base-url",
 	"whizlabs.play-url",
