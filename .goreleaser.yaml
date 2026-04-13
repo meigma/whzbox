@@ -33,7 +33,7 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -buildid=
-      - -X github.com/meigma/whzbox/internal/cli.Version={{ .Version }}
+      - -X github.com/meigma/whzbox/internal/cli.Version={{ if .IsSnapshot }}{{ .Version }}{{ else }}{{ .Tag }}{{ end }}
       - -X github.com/meigma/whzbox/internal/cli.Commit={{ .FullCommit }}
       - -X github.com/meigma/whzbox/internal/cli.BuildTime={{ .Date }}
 

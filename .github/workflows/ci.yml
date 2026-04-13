@@ -80,6 +80,8 @@ jobs:
 
           host_os="$(go env GOHOSTOS)"
           host_arch="$(go env GOHOSTARCH)"
+          current_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          expected_version="${current_tag:-v0.0.0}-dev"
           bin="$(find dist -type f -name whzbox | grep "/whzbox_${host_os}_${host_arch}_" | head -n 1 || true)"
 
           if [[ -z "${bin}" ]]; then
@@ -94,8 +96,8 @@ jobs:
           printf 'version output: %s\n' "${version_output}"
           printf 'flag output: %s\n' "${flag_output}"
 
-          [[ "${version_output}" == *"v0.0.0-dev"* ]]
-          [[ "${flag_output}" == *"v0.0.0-dev"* ]]
+          [[ "${version_output}" == *"${expected_version}"* ]]
+          [[ "${flag_output}" == *"${expected_version}"* ]]
 
           for output in "${version_output}" "${flag_output}"; do
             [[ "${output}" =~ \([[:xdigit:]]{7,40}\)\ built\ [0-9]{4}-[0-9]{2}-[0-9]{2}T ]]
