@@ -40,6 +40,13 @@ Destroy with:  whzbox destroy
 ## Install
 
 ```sh
+# Homebrew (macOS/Linux)
+brew install meigma/tap/whzbox
+
+# Scoop (Windows)
+scoop bucket add meigma https://github.com/meigma/scoop-bucket
+scoop install whzbox
+
 # From source (requires Go 1.26+)
 go install github.com/meigma/whzbox/cmd/whzbox@latest
 
@@ -50,7 +57,7 @@ make build
 ./whzbox --help
 ```
 
-Release binaries for Linux and macOS (amd64 + arm64) are attached to each tagged release on GitHub.
+Release binaries for Linux and macOS (amd64 + arm64) and Windows (amd64) are attached to each tagged release on GitHub.
 
 ## Quickstart
 
@@ -238,4 +245,4 @@ They require a repo-local `.env` with `USERNAME` and `PASSWORD`. The `.env` file
 
 ## License
 
-TBD. Until a license is added, all rights are reserved.
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT License](LICENSE-MIT) at your option.
