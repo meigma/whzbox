@@ -38,6 +38,30 @@ jobs:
         with:
           cosign-release: v3.0.5
 
+      - name: Verify draft release handoff
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          release_json="$(gh release view "${GITHUB_REF_NAME}" --json tagName,isDraft,url)"
+          tag_name="$(jq -r '.tagName' <<<"${release_json}")"
+          is_draft="$(jq -r '.isDraft' <<<"${release_json}")"
+          release_url="$(jq -r '.url' <<<"${release_json}")"
+
+          printf 'draft release: %s\n' "${release_url}"
+
+          if [[ "${tag_name}" != "${GITHUB_REF_NAME}" ]]; then
+            echo "release tag mismatch: expected ${GITHUB_REF_NAME}, got ${tag_name}" >&2
+            exit 1
+          fi
+
+          if [[ "${is_draft}" != "true" ]]; then
+            echo "release ${GITHUB_REF_NAME} is not a draft release" >&2
+            exit 1
+          fi
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         with:
@@ -84,3 +108,11 @@ jobs:
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-checksums: ./dist/checksums.txt
+
+      - name: Publish draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release edit "${GITHUB_REF_NAME}" --draft=false

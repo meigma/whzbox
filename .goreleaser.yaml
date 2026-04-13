@@ -112,8 +112,10 @@ changelog:
       - Merge branch
 
 release:
-  draft: false
+  draft: true
   prerelease: auto
+  use_existing_draft: true
+  replace_existing_artifacts: true
   mode: keep-existing
   header: |
     ## whzbox {{ .Tag }}
