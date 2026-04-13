@@ -9,3 +9,15 @@ go:
   workspaces: false
   bins:
     - 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4'
+
+javascript:
+  packageManager: 'npm'
+  inferTasksFromScripts: false
+  dedupeOnLockfileChange: false
+  syncPackageManagerField: false
+
+node:
+  version: '25.2.1'
+
+npm:
+  version: '11.12.1'

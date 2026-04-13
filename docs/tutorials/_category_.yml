@@ -1,0 +1,8 @@
+label: Tutorials
+position: 2
+collapsed: true
+link:
+  type: generated-index
+  title: Tutorials
+  description: Learn the core whzbox workflow by doing one complete AWS sandbox session.
+  slug: /tutorials

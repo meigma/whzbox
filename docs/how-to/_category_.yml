@@ -1,0 +1,8 @@
+label: How-to Guides
+position: 3
+collapsed: true
+link:
+  type: generated-index
+  title: How-to Guides
+  description: Task-oriented guides for common whzbox workflows and operational problems.
+  slug: /how-to
