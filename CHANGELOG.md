@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/meigma/whzbox/compare/v1.0.0...v1.0.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* **release:** preserve tagged and snapshot version stamps ([6737b05](https://github.com/meigma/whzbox/commit/6737b05a3f281062dc437f49cabd322aae24f848))
+
 ## 1.0.0 (2026-04-13)
 
 
