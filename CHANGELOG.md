@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/meigma/whzbox/compare/v1.0.3...v1.0.4) (2026-04-13)
+
+
+### Bug Fixes
+
+* **release:** force tag creation for draft releases ([9851e3b](https://github.com/meigma/whzbox/commit/9851e3b75d69c8e1a501e9916f3d0f845220ff50))
+
 ## [1.0.3](https://github.com/meigma/whzbox/compare/v1.0.2...v1.0.3) (2026-04-13)
 
 
