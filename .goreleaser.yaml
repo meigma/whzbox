@@ -22,9 +22,13 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
     flags:
       - -trimpath
     ldflags:
@@ -39,6 +43,10 @@ archives:
       - whzbox
     formats:
       - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
     files:
       - README.md
       - LICENSE*
@@ -59,6 +67,35 @@ signs:
       - "${artifact}"
       - "--yes"
     artifacts: checksum
+
+brews:
+  - repository:
+      owner: meigma
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/meigma/whzbox"
+    description: "A small Go CLI for managing Whizlabs cloud sandboxes"
+    license: "MIT OR Apache-2.0"
+    skip_upload: auto
+    commit_msg_template: "brew: update {{ .ProjectName }} to {{ .Tag }}"
+    test: |
+      system "#{bin}/whzbox", "version"
+    install: |
+      bin.install "whzbox"
+
+scoops:
+  - repository:
+      owner: meigma
+      name: scoop-bucket
+      branch: main
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: "https://github.com/meigma/whzbox"
+    description: "A small Go CLI for managing Whizlabs cloud sandboxes"
+    license: "MIT OR Apache-2.0"
+    skip_upload: auto
+    commit_msg_template: "scoop: update {{ .ProjectName }} to {{ .Tag }}"
 
 snapshot:
   version_template: "{{ .Tag }}-dev"
