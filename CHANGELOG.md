@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/meigma/whzbox/compare/v1.0.2...v1.0.3) (2026-04-13)
+
+
+### Bug Fixes
+
+* **release:** create draft releases in release-please ([f35eb2d](https://github.com/meigma/whzbox/commit/f35eb2dc6040fb62c38ed2317676d160e0e8dc7b))
+
 ## [1.0.2](https://github.com/meigma/whzbox/compare/v1.0.1...v1.0.2) (2026-04-13)
 
 
