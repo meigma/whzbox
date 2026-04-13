@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.1.0](https://github.com/meigma/whzbox/compare/v1.0.3...v1.1.0) (2026-04-13)
+
+
+### Features
+
+* add --json, whzbox list, and whzbox exec ([#5](https://github.com/meigma/whzbox/issues/5)) ([6a7dc5b](https://github.com/meigma/whzbox/commit/6a7dc5b9ff01002a3435ba7b305ff888a1fffa9a))
+* cache provisioned sandboxes for reuse on subsequent create ([#4](https://github.com/meigma/whzbox/issues/4)) ([6ea7f78](https://github.com/meigma/whzbox/commit/6ea7f7892757deff59c6f4d4a151ac1520834fac))
+
+
+### Bug Fixes
+
+* **release:** create draft releases in release-please ([f35eb2d](https://github.com/meigma/whzbox/commit/f35eb2dc6040fb62c38ed2317676d160e0e8dc7b))
+* **release:** force tag creation for draft releases ([9851e3b](https://github.com/meigma/whzbox/commit/9851e3b75d69c8e1a501e9916f3d0f845220ff50))
+* **release:** hand off draft releases to goreleaser ([5ccfe5d](https://github.com/meigma/whzbox/commit/5ccfe5d072946675713c5d49559b5c82397f7d21))
+* **release:** preserve tagged and snapshot version stamps ([6737b05](https://github.com/meigma/whzbox/commit/6737b05a3f281062dc437f49cabd322aae24f848))
+* sandbox cache logout and verification handling ([#6](https://github.com/meigma/whzbox/issues/6)) ([76fa888](https://github.com/meigma/whzbox/commit/76fa888dbffe83dfe8dfffd0bf0a3469afd4d287))
+* use client-id for GitHub App token in release-please ([#1](https://github.com/meigma/whzbox/issues/1)) ([f733dc8](https://github.com/meigma/whzbox/commit/f733dc864044aef5976afd8d203b3611e8e75f9e))
+
 ## [1.0.3](https://github.com/meigma/whzbox/compare/v1.0.2...v1.0.3) (2026-04-13)
 
 
