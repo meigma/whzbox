@@ -1,0 +1,15 @@
+# Changelog
+
+## 1.0.0 (2026-04-13)
+
+
+### Features
+
+* add --json, whzbox list, and whzbox exec ([#5](https://github.com/meigma/whzbox/issues/5)) ([6a7dc5b](https://github.com/meigma/whzbox/commit/6a7dc5b9ff01002a3435ba7b305ff888a1fffa9a))
+* cache provisioned sandboxes for reuse on subsequent create ([#4](https://github.com/meigma/whzbox/issues/4)) ([6ea7f78](https://github.com/meigma/whzbox/commit/6ea7f7892757deff59c6f4d4a151ac1520834fac))
+
+
+### Bug Fixes
+
+* sandbox cache logout and verification handling ([#6](https://github.com/meigma/whzbox/issues/6)) ([76fa888](https://github.com/meigma/whzbox/commit/76fa888dbffe83dfe8dfffd0bf0a3469afd4d287))
+* use client-id for GitHub App token in release-please ([#1](https://github.com/meigma/whzbox/issues/1)) ([f733dc8](https://github.com/meigma/whzbox/commit/f733dc864044aef5976afd8d203b3611e8e75f9e))
