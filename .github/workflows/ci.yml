@@ -44,6 +44,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-moon-
 
+      - name: Restore npm Cache
+        id: npm-cache-restore
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-moon-${{ hashFiles('docs/package.json', 'docs/package-lock.json', '.moon/toolchains.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-moon-
+
       - name: Run Moon CI
         run: moon ci --summary minimal
 
@@ -73,3 +82,10 @@ jobs:
             ~/.cache/go-build
             ~/.cache/golangci-lint
           key: ${{ steps.go-cache-restore.outputs.cache-primary-key }}
+
+      - name: Save npm Cache
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.npm-cache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm-cache-restore.outputs.cache-primary-key }}
