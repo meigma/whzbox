@@ -25,6 +25,9 @@ This command uses only the global flags.
 
 - Prints the version string assembled from the embedded `Version`, `Commit`, and `BuildTime` values.
 - Uses a lightweight app path that does not initialize the state store or network adapters.
+- Binaries built directly from source without linker flags report the fallback values `dev`, `none`, and `unknown`.
+- GoReleaser snapshot builds embed `v0.0.0-dev` plus the current commit and build timestamp.
+- Tagged GoReleaser release builds embed the Git tag version plus the corresponding commit and build timestamp.
 
 ## Output
 

@@ -46,6 +46,39 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+
+      - name: Smoke test released binary version metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          host_os="$(go env GOHOSTOS)"
+          host_arch="$(go env GOHOSTARCH)"
+          expected_version="${GITHUB_REF_NAME}"
+          bin="$(find dist -type f -name whzbox | grep "/whzbox_${host_os}_${host_arch}_" | head -n 1 || true)"
+
+          if [[ -z "${bin}" ]]; then
+            echo "failed to locate host binary in dist/" >&2
+            find dist -maxdepth 2 -type f | sort >&2
+            exit 1
+          fi
+
+          version_output="$("${bin}" version)"
+          flag_output="$("${bin}" --version)"
+
+          printf 'version output: %s\n' "${version_output}"
+          printf 'flag output: %s\n' "${flag_output}"
+
+          [[ "${version_output}" == *"${expected_version}"* ]]
+          [[ "${flag_output}" == *"${expected_version}"* ]]
+
+          for output in "${version_output}" "${flag_output}"; do
+            [[ "${output}" =~ \([[:xdigit:]]{7,40}\)\ built\ [0-9]{4}-[0-9]{2}-[0-9]{2}T ]]
+            [[ "${output}" != *"(none)"* ]]
+            [[ "${output}" != *"built unknown"* ]]
+          done
 
       - name: Attest released files listed in checksums.txt
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
