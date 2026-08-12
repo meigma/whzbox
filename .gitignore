@@ -9,7 +9,7 @@ coverage.out
 coverage.html
 /docs/node_modules/
 /docs/build/
-/docs/.docusaurus/
+/docs/.venv/
 
 # Local environment
 .env

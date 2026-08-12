@@ -1,0 +1,89 @@
+site_name: whzbox
+site_description: Provision and manage Whizlabs sandboxes from the command line
+site_url: https://whzbox.meigma.dev/
+repo_name: meigma/whzbox
+repo_url: https://github.com/meigma/whzbox
+edit_uri: edit/main/docs/docs/
+docs_dir: docs
+site_dir: build
+strict: true
+
+theme:
+  name: material
+  language: en
+  features:
+    - content.action.edit
+    - navigation.instant
+    - navigation.tracking
+    - search.highlight
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Overview: index.md
+  - Tutorials:
+      - Overview: tutorials/index.md
+      - Create, use, and destroy your first AWS sandbox: tutorials/create-use-and-destroy-your-first-aws-sandbox.md
+  - How-to Guides:
+      - Overview: how-to/index.md
+      - Create a sandbox with a specific duration: how-to/create-a-sandbox-with-a-specific-duration.md
+      - Run AWS CLI commands with whzbox exec: how-to/run-aws-cli-commands-with-whzbox-exec.md
+      - Use whzbox in non-interactive scripts: how-to/use-whzbox-in-non-interactive-scripts.md
+      - Destroy a sandbox without prompts: how-to/destroy-a-sandbox-without-prompts.md
+      - Relocate or inspect the state directory: how-to/relocate-or-inspect-the-state-directory.md
+      - Recover from expired sessions or bad local state: how-to/recover-from-expired-sessions-or-bad-local-state.md
+      - Consume create and list JSON output: how-to/consume-create-and-list-json-output.md
+  - Reference:
+      - Overview: reference/index.md
+      - Commands:
+          - Overview: reference/commands/index.md
+          - login: reference/commands/login.md
+          - logout: reference/commands/logout.md
+          - create: reference/commands/create.md
+          - destroy: reference/commands/destroy.md
+          - list: reference/commands/list.md
+          - status: reference/commands/status.md
+          - exec: reference/commands/exec.md
+          - version: reference/commands/version.md
+          - completion: reference/commands/completion.md
+      - Global flags and environment variables: reference/global-flags-and-environment-variables.md
+      - Exit codes: reference/exit-codes.md
+      - JSON output schemas: reference/json-output-schemas.md
+      - State file location, permissions, and lifecycle: reference/state-file-location-permissions-and-lifecycle.md
+  - Explanation:
+      - Overview: explanation/index.md
+      - Sessions, refresh, and re-login: explanation/about-sessions-refresh-and-re-login.md
+      - Sandbox caching and reuse: explanation/about-sandbox-caching-and-reuse.md
+      - Verification and unverified credentials: explanation/about-verification-and-why-create-can-still-return-unverified-credentials.md
+      - Why status is session-only: explanation/about-why-status-is-session-only.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+
+extra_css:
+  - stylesheets/palette.css
