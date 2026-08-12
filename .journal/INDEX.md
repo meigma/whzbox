@@ -2,4 +2,4 @@
 
 | ID  | Date       | Title | Status | Summary |
 |-----|------------|-------|--------|---------|
-| 001 | 2026-08-12 | New work session | in-progress | Session opened and waiting for the user's substantive request. |
+| 001 | 2026-08-12 | Add GCP console sandbox support | complete | Added and live-validated console-only GCP lifecycle support in merged PR #39. |
