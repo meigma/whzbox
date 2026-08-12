@@ -55,3 +55,10 @@ Verification:
 Opened review-ready PR #40, `feat(azure): add console sandbox support`, from `feat/azure-sandbox` at exact head `64a2d9d` into `main`: https://github.com/meigma/whzbox/pull/40
 
 Initial hosted state: the PR is open and mergeable; CI, CodeQL, release dry run, and Kusari checks have started, while the Cloudflare Workers build has already passed. The PR remains blocked until required checks and review complete.
+
+## 2026-08-12 16:57 — CI lint failure diagnosed
+PR #40 failed only the GitHub Actions `ci` check at exact head `64a2d9d`; release dry run, CodeQL, Kusari, and Cloudflare checks passed.
+
+Root cause: golangci-lint 2.12.2 reports four `goconst` findings in `internal/ui/render.go` after Azure introduced a third occurrence of the labels `Expires`, `Console`, `Username`, and `Password`. The earlier local gate used the globally resolved golangci-lint 2.11.4 because the checkout's mise config was untrusted, despite the repository pin being 2.12.2. Running the installed pinned 2.12.2 binary directly reproduced all four findings.
+
+Proposed fix: define the four repeated renderer labels as local package constants, rerun pinned golangci-lint 2.12.2 and the full repository gate, then commit and push the narrow correction after user approval.
