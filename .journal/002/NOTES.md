@@ -25,3 +25,12 @@ Proposed delivery:
 5. Add behavior-focused adapter, service, persistence, CLI, renderer, and compatibility tests; update concise user and reference docs.
 6. Pass `moon run root:check`, then run a final disposable live Azure lifecycle acceptance and always destroy the sandbox.
 Verification: The unchanged repository passes `moon run root:check` on Moon 2.3.5 and Go 1.26.4. `mise exec` was not used because this checkout's config is untrusted; the already-installed tool versions match the repository pins.
+
+## 2026-08-12 16:32 — Live Azure contract proven
+Created `feat/azure-sandbox` from fetched `main` in `.wt/feat-azure-sandbox` and ran a temporary, build-tagged authenticated contract spike. The spike logged only field names and counts, registered teardown immediately after creation, and was removed after use.
+Findings:
+- `azure-sandbox` successfully uses `play-create-lab`, `play-update-user-task-status`, and `play-end-lab` with the same lab request shape as GCP.
+- A one-hour request succeeded in about 96 seconds for the complete create, commit, MFA, and destroy sequence.
+- Create returned console URL, username, password, timestamps, and three `resource_group` values. It did not return tenant, subscription, service-principal, client-secret, or other programmatic credentials.
+- `play-az-generate-mfa` returned a single `otp` field and teardown completed successfully.
+Decision: Implement console-only Azure support with resource-group metadata and an on-demand, non-persisted `whzbox mfa azure` command. Keep `exec azure` unsupported.
