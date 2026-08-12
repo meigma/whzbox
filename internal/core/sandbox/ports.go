@@ -29,9 +29,11 @@ type Manager interface {
 	Commit(ctx context.Context, tokens session.Tokens, slug string, duration time.Duration) error
 
 	// Destroy tears down the user's currently active sandbox.
+	// Slug selects the provider-specific upstream teardown route; an
+	// empty slug preserves the AWS route for cache-recovery scenarios.
 	// Implementations must return ErrNoActiveSandbox (possibly wrapped)
 	// when there is nothing to destroy, so callers can use errors.Is.
-	Destroy(ctx context.Context, tokens session.Tokens) error
+	Destroy(ctx context.Context, tokens session.Tokens, slug string) error
 
 	// Active returns the user's currently-active sandbox, or
 	// ErrNoActiveSandbox when nothing is active.

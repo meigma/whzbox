@@ -1,8 +1,8 @@
 # whzbox
 
-`whzbox` is a Go CLI for Whizlabs cloud sandboxes. It signs in to Whizlabs, creates or reuses a sandbox, verifies the returned credentials, and helps you run commands against that sandbox until you destroy it.
+`whzbox` is a Go CLI for Whizlabs cloud sandboxes. It creates, caches, lists, and destroys AWS and GCP sandboxes.
 
-AWS is the only supported provider today.
+AWS includes programmatic credentials for `whzbox exec`. GCP provides browser-console credentials only.
 
 ## Install
 
@@ -39,9 +39,18 @@ whzbox exec aws -- aws sts get-caller-identity
 whzbox destroy --yes
 ```
 
+For a GCP console sandbox:
+
+```sh
+whzbox create gcp
+# Open the displayed console URL and sign in with the displayed username and password.
+whzbox destroy --yes
+```
+
 Common commands:
 
-- `whzbox create aws` creates an AWS sandbox and prints credentials.
+- `whzbox create aws` creates an AWS sandbox with console and programmatic credentials.
+- `whzbox create gcp` creates a GCP sandbox with console credentials and project metadata.
 - `whzbox list` shows cached sandboxes from local state.
 - `whzbox exec aws -- <command>` runs a command with sandbox credentials injected.
 - `whzbox status` shows the cached session.
@@ -65,7 +74,9 @@ A repo-local [SKILL.md](SKILL.md) is available for AI agents that need a concise
 
 A few behaviors that are easy to miss are documented in detail there:
 
-- `create aws` can reuse an unexpired cached sandbox.
+- `create aws` and `create gcp` can reuse an unexpired cached sandbox.
+- Whizlabs permits one active sandbox, so destroy the current provider before creating another.
+- `exec` supports AWS only. `exec gcp` explains the console-only limitation.
 - `exec`, `list`, and `status` read local state; they do not talk to Whizlabs.
 - `--json` is implemented by `create` and `list`.
 

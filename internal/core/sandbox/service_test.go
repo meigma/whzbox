@@ -32,7 +32,7 @@ func newRig(t *testing.T) *testRig {
 	svc := sandbox.NewService(
 		auth,
 		mgr,
-		map[sandbox.Kind]sandbox.Provider{sandbox.KindAWS: prov},
+		providerSet(prov),
 		store,
 		clk,
 		nil,
@@ -237,6 +237,72 @@ func TestService_Create_VerifyFails_SandboxStillReturned(t *testing.T) {
 	}
 }
 
+func TestService_Create_UnsupportedVerificationStillSucceeds(t *testing.T) {
+	r := newRig(t)
+	r.provider.kind = sandbox.KindGCP
+	r.provider.slug = "gcp-sandbox"
+	r.provider.verifyErr = sandbox.ErrVerificationUnsupported
+	r.manager.createResult = &sandbox.Sandbox{
+		Identity:  sandbox.Identity{ProjectID: "project-12345"},
+		Console:   sandbox.Console{Username: "student@example.com", Password: "secret"},
+		ExpiresAt: r.clock.Now().Add(time.Hour),
+	}
+	r.svc = sandbox.NewService(
+		r.auth,
+		r.manager,
+		providerSet(r.provider),
+		r.store,
+		r.clock,
+		nil,
+	)
+
+	got, err := r.svc.Create(context.Background(), sandbox.KindGCP, time.Hour)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if got.Identity.ProjectID != "project-12345" {
+		t.Errorf("ProjectID: got %q", got.Identity.ProjectID)
+	}
+	if got.Verified {
+		t.Error("console-only GCP sandbox should remain unverified")
+	}
+	if r.store.saveCalls != 1 {
+		t.Errorf("console-only sandbox should be cached: got %d saves", r.store.saveCalls)
+	}
+}
+
+func TestService_Create_RejectsDifferentActiveProvider(t *testing.T) {
+	r := newRig(t)
+	gcp := &fakeProvider{kind: sandbox.KindGCP, slug: "gcp-sandbox"}
+	r.store.loaded = sandboxSet(
+		&sandbox.Sandbox{
+			Kind:      sandbox.KindAWS,
+			Slug:      "aws-sandbox",
+			ExpiresAt: r.clock.Now().Add(time.Hour),
+		},
+	)
+	r.svc = sandbox.NewService(
+		r.auth,
+		r.manager,
+		providerSet(r.provider, gcp),
+		r.store,
+		r.clock,
+		nil,
+	)
+
+	_, err := r.svc.Create(context.Background(), sandbox.KindGCP, time.Hour)
+	if !errors.Is(err, sandbox.ErrActiveSandbox) {
+		t.Fatalf("error: got %v, want ErrActiveSandbox", err)
+	}
+	if r.auth.calls != 0 || r.manager.createCalls != 0 {
+		t.Errorf(
+			"active-provider conflict should fail before side effects: auth=%d create=%d",
+			r.auth.calls,
+			r.manager.createCalls,
+		)
+	}
+}
+
 // -----------------------------------------------------------------------------
 // Create — sandbox cache
 // -----------------------------------------------------------------------------
@@ -291,7 +357,7 @@ func TestService_Create_ReusesCachedSandbox(t *testing.T) {
 	cached.Identity = sampleIdentity()
 	// ExpiresAt = clock.Now() + 1h (clock is at 2026-04-11 12:00 UTC, sandbox
 	// expires at 13:00 UTC — still valid).
-	r.store.loaded = map[sandbox.Kind]*sandbox.Sandbox{sandbox.KindAWS: cached}
+	r.store.loaded = sandboxSet(cached)
 
 	got, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
 	if err != nil {
@@ -315,13 +381,46 @@ func TestService_Create_ReusesCachedSandbox(t *testing.T) {
 	}
 }
 
+func TestService_Create_ReusesConsoleOnlyCachedSandbox(t *testing.T) {
+	r := newRig(t)
+	r.provider.kind = sandbox.KindGCP
+	r.provider.slug = "gcp-sandbox"
+	r.provider.verifyErr = sandbox.ErrVerificationUnsupported
+	cached := &sandbox.Sandbox{
+		Kind:      sandbox.KindGCP,
+		Slug:      "gcp-sandbox",
+		Identity:  sandbox.Identity{ProjectID: "project-12345"},
+		ExpiresAt: r.clock.Now().Add(time.Hour),
+	}
+	r.store.loaded = sandboxSet(cached)
+	r.svc = sandbox.NewService(
+		r.auth,
+		r.manager,
+		providerSet(r.provider),
+		r.store,
+		r.clock,
+		nil,
+	)
+
+	got, err := r.svc.Create(context.Background(), sandbox.KindGCP, time.Hour)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if got != cached {
+		t.Fatal("expected cached console-only sandbox")
+	}
+	if r.manager.createCalls != 0 || r.auth.calls != 0 {
+		t.Errorf("cache reuse should avoid upstream calls: auth=%d create=%d", r.auth.calls, r.manager.createCalls)
+	}
+}
+
 func TestService_Create_ReverifiesUnverifiedCachedSandbox(t *testing.T) {
 	r := newRig(t)
 	cached := sampleSandbox()
 	cached.Kind = sandbox.KindAWS
 	cached.Slug = "aws-sandbox"
 	cached.Verified = false
-	r.store.loaded = map[sandbox.Kind]*sandbox.Sandbox{sandbox.KindAWS: cached}
+	r.store.loaded = sandboxSet(cached)
 	r.provider.verifyResult = sampleIdentity()
 
 	got, err := r.svc.Create(context.Background(), sandbox.KindAWS, time.Hour)
@@ -357,7 +456,7 @@ func TestService_Create_ReverifyFailureStaysExplicit(t *testing.T) {
 	cached.Kind = sandbox.KindAWS
 	cached.Slug = "aws-sandbox"
 	cached.Verified = false
-	r.store.loaded = map[sandbox.Kind]*sandbox.Sandbox{sandbox.KindAWS: cached}
+	r.store.loaded = sandboxSet(cached)
 	bang := errors.New("InvalidClientTokenId")
 	r.provider.verifyErr = bang
 
@@ -393,7 +492,7 @@ func TestService_Create_IgnoresExpiredCache(t *testing.T) {
 	cached := sampleSandbox()
 	// Expired 1 minute ago relative to the fake clock.
 	cached.ExpiresAt = r.clock.T.Add(-time.Minute)
-	r.store.loaded = map[sandbox.Kind]*sandbox.Sandbox{sandbox.KindAWS: cached}
+	r.store.loaded = sandboxSet(cached)
 	r.manager.createResult = sampleSandbox()
 	r.provider.verifyResult = sampleIdentity()
 
@@ -455,6 +554,18 @@ func TestService_Destroy_HappyPath(t *testing.T) {
 	}
 	if r.store.clearAll != 1 {
 		t.Errorf("store.ClearAll calls: got %d, want 1", r.store.clearAll)
+	}
+}
+
+func TestService_Destroy_UsesCachedProviderSlug(t *testing.T) {
+	r := newRig(t)
+	r.store.loaded = sandboxSet(&sandbox.Sandbox{Kind: sandbox.KindGCP, Slug: "gcp-sandbox"})
+
+	if err := r.svc.Destroy(context.Background()); err != nil {
+		t.Fatalf("Destroy: %v", err)
+	}
+	if r.manager.lastDestroySlug != "gcp-sandbox" {
+		t.Errorf("destroy slug: got %q, want gcp-sandbox", r.manager.lastDestroySlug)
 	}
 }
 

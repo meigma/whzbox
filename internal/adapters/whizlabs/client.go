@@ -18,9 +18,9 @@ import (
 // importable from the CLI without creating a cycle.
 const userAgent = "whzbox/dev (+https://github.com/meigma/whzbox)"
 
-// defaultTimeout is the per-request HTTP timeout. Whizlabs sandbox
-// creation takes up to ~30s, so this must comfortably exceed that.
-const defaultTimeout = 60 * time.Second
+// defaultTimeout is the per-request HTTP timeout. Whizlabs GCP lab
+// create and teardown calls can take close to three minutes.
+const defaultTimeout = 4 * time.Minute
 
 // maxBodyTruncate is the maximum number of characters to include in
 // HTTP error messages.

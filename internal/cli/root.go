@@ -25,7 +25,7 @@ func NewRootCommandWithOptions(options Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "whzbox",
 		Short:         "Spin up cloud sandboxes from Whizlabs",
-		Long:          "whzbox spins up on-demand cloud sandboxes through Whizlabs, fetches their credentials, and verifies they work.",
+		Long:          "whzbox creates and manages on-demand AWS and GCP cloud sandboxes through Whizlabs.",
 		Version:       options.Build.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,

@@ -13,7 +13,7 @@ description: Understand why whzbox caches sandbox data locally and how that affe
 Without a local cache, the credentials printed by `create` would be lost as soon as the terminal session ended. The cache makes later commands possible:
 
 - `list` can show what is still stored locally
-- `exec` can inject the cached credentials into a child process
+- `exec aws` can inject cached AWS credentials into a child process
 - `create` can reuse a still-live sandbox instead of provisioning again
 
 ## Reuse rules
@@ -23,11 +23,14 @@ Without a local cache, the credentials printed by `create` would be lost as soon
 - no cached sandbox: provision a new one
 - cached but expired sandbox: provision a new one
 - cached and verified sandbox: reuse it immediately
-- cached and unverified sandbox: try verification again before deciding
+- cached and unverified AWS sandbox: try verification again before deciding
+- cached GCP sandbox: reuse its console credentials without verification
+
+Whizlabs permits one active sandbox per user. If a different unexpired provider is cached, `create` asks you to destroy it first.
 
 ## Why `logout` preserves cached sandboxes
 
-Session tokens and sandbox credentials serve different purposes. Clearing the Whizlabs session does not make the cached AWS credentials disappear, so `logout` preserves cached sandboxes on disk.
+Session tokens and sandbox credentials serve different purposes. Clearing the Whizlabs session does not remove cached AWS or GCP credentials, so `logout` preserves cached sandboxes on disk.
 
 That is why this sequence can still work while the sandbox remains valid:
 

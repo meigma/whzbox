@@ -13,17 +13,18 @@ description: Reference for the JSON emitted by whzbox create and whzbox list.
 | Command | Top-level JSON type |
 | --- | --- |
 | `whzbox create aws --json` | object |
+| `whzbox create gcp --json` | object |
 | `whzbox list --json` | array of objects |
 
 ## Sandbox object schema
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `kind` | string | Sandbox kind, currently `aws`. |
-| `slug` | string | Whizlabs provider slug, currently `aws-sandbox`. |
-| `credentials` | object | Programmatic credentials. |
+| `kind` | string | Sandbox kind: `aws` or `gcp`. |
+| `slug` | string | Whizlabs provider slug: `aws-sandbox` or `gcp-sandbox`. |
+| `credentials` | object | Programmatic credentials. Both values are empty for GCP. |
 | `console` | object | Browser console login details. |
-| `identity` | object | Verified identity data, when available. |
+| `identity` | object | Verified AWS identity or GCP project metadata. |
 | `started_at` | string | Sandbox start time as an RFC 3339 timestamp. |
 | `expires_at` | string | Sandbox expiry time as an RFC 3339 timestamp. |
 
@@ -38,7 +39,7 @@ description: Reference for the JSON emitted by whzbox create and whzbox list.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `url` | string | AWS console sign-in URL |
+| `url` | string | Provider console sign-in URL |
 | `username` | string | Console username |
 | `password` | string | Console password |
 
@@ -50,6 +51,8 @@ description: Reference for the JSON emitted by whzbox create and whzbox list.
 | `user_id` | string | AWS user ID |
 | `arn` | string | AWS ARN |
 | `region` | string | AWS region |
+| `project_id` | string | GCP project ID; omitted for AWS |
+| `project_name` | string | GCP project name; omitted for AWS |
 
 ## Example: `create --json`
 
@@ -103,6 +106,34 @@ description: Reference for the JSON emitted by whzbox create and whzbox list.
     "expires_at": "2026-04-12T01:00:00Z"
   }
 ]
+```
+
+## Example: GCP `create --json`
+
+```json
+{
+  "kind": "gcp",
+  "slug": "gcp-sandbox",
+  "credentials": {
+    "access_key": "",
+    "secret_key": ""
+  },
+  "console": {
+    "url": "https://console.cloud.google.com/",
+    "username": "student@example.com",
+    "password": "password"
+  },
+  "identity": {
+    "account": "",
+    "user_id": "",
+    "arn": "",
+    "region": "",
+    "project_id": "project-12345",
+    "project_name": "project-12345"
+  },
+  "started_at": "2026-04-12T00:00:00Z",
+  "expires_at": "2026-04-12T01:00:00Z"
+}
 ```
 
 ## Notes

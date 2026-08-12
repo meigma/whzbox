@@ -72,12 +72,12 @@ func TestIntegration_SandboxLifecycle(t *testing.T) {
 	}
 
 	// Step 5: destroy the sandbox so we don't leak one for an hour.
-	if err := client.Destroy(ctx, tokens); err != nil {
+	if err := client.Destroy(ctx, tokens, "aws-sandbox"); err != nil {
 		t.Fatalf("Destroy: %v", err)
 	}
 
 	// Step 6: second destroy should report no-active-sandbox.
-	err = client.Destroy(ctx, tokens)
+	err = client.Destroy(ctx, tokens, "aws-sandbox")
 	if err == nil {
 		t.Error("second Destroy should fail, got nil")
 	} else if !isNoActiveSandbox(err) {

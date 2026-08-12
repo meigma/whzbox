@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/meigma/whzbox/internal/adapters/awsverify"
+	"github.com/meigma/whzbox/internal/adapters/gcpconsole"
 	"github.com/meigma/whzbox/internal/adapters/huhprompt"
 	"github.com/meigma/whzbox/internal/adapters/whizlabs"
 	"github.com/meigma/whzbox/internal/adapters/xdgstore"
@@ -62,11 +63,13 @@ func newApp(vp *viper.Viper, options Options) (*App, error) {
 	sessionSvc := session.NewService(whiz, store, prompt, realClock, logger)
 
 	awsProv := awsverify.New("us-east-1")
+	gcpProv := gcpconsole.New()
 	sandboxSvc := sandbox.NewService(
 		sessionSvc,
 		whiz,
 		map[sandbox.Kind]sandbox.Provider{
 			sandbox.KindAWS: awsProv,
+			sandbox.KindGCP: gcpProv,
 		},
 		store.SandboxStore(),
 		realClock,

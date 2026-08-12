@@ -2,6 +2,7 @@ package ui_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -70,6 +71,66 @@ func TestRenderSandbox_NilIsNoop(t *testing.T) {
 	ui.RenderSandbox(&buf, nil)
 	if buf.Len() != 0 {
 		t.Errorf("nil sandbox should produce no output, got: %q", buf.String())
+	}
+}
+
+func TestRenderSandbox_GCPConsoleOnly(t *testing.T) {
+	sb := &sandbox.Sandbox{
+		Kind: sandbox.KindGCP,
+		Identity: sandbox.Identity{
+			ProjectID:   "project-12345",
+			ProjectName: "project-12345",
+		},
+		Console: sandbox.Console{
+			URL:      "https://console.cloud.google.com/",
+			Username: "student@example.com",
+			Password: "gcp-password",
+		},
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+
+	var buf bytes.Buffer
+	ui.RenderSandbox(&buf, sb)
+	out := buf.String()
+	for _, want := range []string{"Project ID", "project-12345", "Browser console only", "student@example.com", "gcp-password"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "AWS_ACCESS_KEY_ID") {
+		t.Errorf("GCP output should not include AWS credentials:\n%s", out)
+	}
+}
+
+func TestRenderSandboxJSON_GCPProjectIdentity(t *testing.T) {
+	sb := &sandbox.Sandbox{
+		Kind:     sandbox.KindGCP,
+		Slug:     "gcp-sandbox",
+		Identity: sandbox.Identity{ProjectID: "project-12345", ProjectName: "project-12345"},
+		Console: sandbox.Console{
+			URL:      "https://console.cloud.google.com/",
+			Username: "student@example.com",
+			Password: "secret",
+		},
+		StartedAt: time.Now(),
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+
+	var buf bytes.Buffer
+	if err := ui.RenderSandboxJSON(&buf, sb); err != nil {
+		t.Fatalf("RenderSandboxJSON: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	identity, _ := got["identity"].(map[string]any)
+	if identity["project_id"] != "project-12345" {
+		t.Errorf("project_id: got %v", identity["project_id"])
+	}
+	credentials, _ := got["credentials"].(map[string]any)
+	if credentials["access_key"] != "" || credentials["secret_key"] != "" {
+		t.Errorf("GCP programmatic credentials should be empty: %v", credentials)
 	}
 }
 

@@ -131,10 +131,12 @@ type consoleDTO struct {
 }
 
 type identityDTO struct {
-	Account string `json:"account"`
-	UserID  string `json:"user_id"`
-	ARN     string `json:"arn"`
-	Region  string `json:"region"`
+	Account     string `json:"account"`
+	UserID      string `json:"user_id"`
+	ARN         string `json:"arn"`
+	Region      string `json:"region"`
+	ProjectID   string `json:"project_id,omitempty"`
+	ProjectName string `json:"project_name,omitempty"`
 }
 
 // Load implements session.TokenStore. A missing file is NOT an error —
@@ -486,10 +488,12 @@ func dtoFromSandbox(sb *sandbox.Sandbox) sandboxDTO {
 			Password: sb.Console.Password,
 		},
 		Identity: identityDTO{
-			Account: sb.Identity.Account,
-			UserID:  sb.Identity.UserID,
-			ARN:     sb.Identity.ARN,
-			Region:  sb.Identity.Region,
+			Account:     sb.Identity.Account,
+			UserID:      sb.Identity.UserID,
+			ARN:         sb.Identity.ARN,
+			Region:      sb.Identity.Region,
+			ProjectID:   sb.Identity.ProjectID,
+			ProjectName: sb.Identity.ProjectName,
 		},
 		StartedAt: sb.StartedAt.Format(time.RFC3339),
 		ExpiresAt: sb.ExpiresAt.Format(time.RFC3339),
@@ -519,10 +523,12 @@ func sandboxFromDTO(d sandboxDTO) (*sandbox.Sandbox, error) {
 			Password: d.Console.Password,
 		},
 		Identity: sandbox.Identity{
-			Account: d.Identity.Account,
-			UserID:  d.Identity.UserID,
-			ARN:     d.Identity.ARN,
-			Region:  d.Identity.Region,
+			Account:     d.Identity.Account,
+			UserID:      d.Identity.UserID,
+			ARN:         d.Identity.ARN,
+			Region:      d.Identity.Region,
+			ProjectID:   d.Identity.ProjectID,
+			ProjectName: d.Identity.ProjectName,
 		},
 		StartedAt: startedAt,
 		ExpiresAt: expiresAt,
