@@ -9,6 +9,7 @@ import (
 func newStatusCommand(app **App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
+		Args:  cobra.NoArgs,
 		Short: "Show the cached session",
 		Long: "Print the cached session (if any).\n\n" +
 			"This command is read-only — it does not refresh tokens or prompt\n" +

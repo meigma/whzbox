@@ -51,11 +51,11 @@ func newExecCommand(app **App) *cobra.Command {
 				return fmt.Errorf("--shell takes exactly one command argument, got %d", len(rest))
 			}
 
-			env := append(os.Environ(), (*app).Sandbox.EnvFor(sb)...)
-			argv := buildExecArgv(rest, useShell)
+			env := append(appEnviron(*app), (*app).Sandbox.EnvFor(sb)...)
+			argv := buildExecArgv(rest, useShell, appGetenv(*app))
 
 			return runExec(cmd.Context(), argv, env,
-				os.Stdin, cmd.OutOrStdout(), cmd.ErrOrStderr())
+				cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 	cmd.Flags().BoolVarP(&useShell, "shell", "s", false,
@@ -68,10 +68,10 @@ func newExecCommand(app **App) *cobra.Command {
 //   - no args → the user's shell (interactive subshell).
 //   - --shell → /bin/sh -c <value>.
 //   - otherwise → the args verbatim.
-func buildExecArgv(args []string, useShell bool) []string {
+func buildExecArgv(args []string, useShell bool, getenv func(string) string) []string {
 	switch {
 	case len(args) == 0:
-		return []string{shellFromEnv()}
+		return []string{shellFromEnv(getenv)}
 	case useShell:
 		return []string{"/bin/sh", "-c", args[0]}
 	default:
@@ -103,9 +103,23 @@ func runExec(ctx context.Context, argv, env []string, stdin io.Reader, stdout, s
 
 // shellFromEnv returns the user's preferred shell, falling back to
 // /bin/sh when $SHELL is unset (rare: `env -i`, some container images).
-func shellFromEnv() string {
-	if s := os.Getenv("SHELL"); s != "" {
+func shellFromEnv(getenv func(string) string) string {
+	if s := getenv("SHELL"); s != "" {
 		return s
 	}
 	return "/bin/sh"
+}
+
+func appEnviron(app *App) []string {
+	if app.Environ != nil {
+		return app.Environ()
+	}
+	return os.Environ()
+}
+
+func appGetenv(app *App) func(string) string {
+	if app.Getenv != nil {
+		return app.Getenv
+	}
+	return os.Getenv
 }

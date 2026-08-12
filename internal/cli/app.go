@@ -20,27 +20,31 @@ import (
 // shared across all subcommands.
 //
 // The fields are exported so tests can construct an App directly with
-// fake services, bypassing NewApp's real-adapter wiring.
+// fake services, bypassing the production adapter wiring.
 type App struct {
 	Config config.Config
 	Logger *slog.Logger
 	Clock  clock.Clock
+	Build  BuildInfo
+
+	Environ func() []string
+	Getenv  func(string) string
 
 	Session *session.Service
 	Sandbox *sandbox.Service
 }
 
-// NewApp loads config from the supplied Viper instance and constructs
+// newApp loads config from the supplied Viper instance and constructs
 // the production dependency graph: xdg file store, whizlabs HTTP
 // client, huh interactive prompt, and the session service that ties
 // them together.
-func NewApp(vp *viper.Viper) (*App, error) {
+func newApp(vp *viper.Viper, options Options) (*App, error) {
 	cfg, err := config.Load(vp)
 	if err != nil {
 		return nil, err
 	}
 
-	logger := logging.New(cfg)
+	logger := logging.NewWith(cfg, options.Err)
 	realClock := clock.Real{}
 
 	stateDir, err := xdgstore.ResolveStateDir(cfg.StateDir)
@@ -53,7 +57,7 @@ func NewApp(vp *viper.Viper) (*App, error) {
 	}
 
 	whiz := whizlabs.NewClient(cfg.Whizlabs, logger)
-	prompt := huhprompt.New()
+	prompt := huhprompt.New(options.In, options.Err)
 
 	sessionSvc := session.NewService(whiz, store, prompt, realClock, logger)
 
@@ -73,21 +77,27 @@ func NewApp(vp *viper.Viper) (*App, error) {
 		Config:  cfg,
 		Logger:  logger,
 		Clock:   realClock,
+		Build:   options.Build,
+		Environ: options.Environ,
+		Getenv:  options.Getenv,
 		Session: sessionSvc,
 		Sandbox: sandboxSvc,
 	}, nil
 }
 
-// NewMetadataApp loads only the pieces needed by the version command.
+// newMetadataApp loads only the pieces needed by the version command.
 // It deliberately avoids creating state or network adapters.
-func NewMetadataApp(vp *viper.Viper) (*App, error) {
+func newMetadataApp(vp *viper.Viper, options Options) (*App, error) {
 	cfg, err := config.Load(vp)
 	if err != nil {
 		return nil, err
 	}
 	return &App{
-		Config: cfg,
-		Logger: logging.New(cfg),
-		Clock:  clock.Real{},
+		Config:  cfg,
+		Logger:  logging.NewWith(cfg, options.Err),
+		Clock:   clock.Real{},
+		Build:   options.Build,
+		Environ: options.Environ,
+		Getenv:  options.Getenv,
 	}, nil
 }

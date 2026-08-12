@@ -9,21 +9,16 @@ import (
 )
 
 func TestVersionCommand_PrintsBuildInfo(t *testing.T) {
-	// Override the package-level build vars for this test, then restore.
-	origVersion, origCommit, origBuildTime := cli.Version, cli.Commit, cli.BuildTime
-	cli.Version = "v1.2.3"
-	cli.Commit = "abc123"
-	cli.BuildTime = "2026-04-11T00:00:00Z"
-	t.Cleanup(func() {
-		cli.Version = origVersion
-		cli.Commit = origCommit
-		cli.BuildTime = origBuildTime
-	})
-
-	cmd := cli.NewRootCommand()
 	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	options := cli.DefaultOptions()
+	options.Out = &out
+	options.Err = &out
+	options.Build = cli.BuildInfo{
+		Version: "v1.2.3",
+		Commit:  "abc123",
+		Time:    "2026-04-11T00:00:00Z",
+	}
+	cmd := cli.NewRootCommandWithOptions(options)
 	cmd.SetArgs([]string{"version"})
 
 	if err := cmd.Execute(); err != nil {
@@ -56,23 +51,10 @@ func TestVersionCommand_DoesNotRequireStateDir(t *testing.T) {
 }
 
 func TestRootCommand_VersionFlag(t *testing.T) {
-	// --version uses cobra's built-in Version field, which we set to
-	// BuildString() in NewRootCommand.
-	origVersion := cli.Version
-	cli.Version = "v9.9.9"
-	t.Cleanup(func() { cli.Version = origVersion })
-
-	cmd := cli.NewRootCommand()
-	// cobra builds the --version template from cmd.Version at construction
-	// time, so we have to re-read it to cover the happy path.
-	if cmd.Version == "" {
-		t.Fatal("root command has no Version set")
-	}
+	options := cli.DefaultOptions()
+	options.Build = cli.BuildInfo{Version: "v9.9.9", Commit: "abc", Time: "today"}
+	cmd := cli.NewRootCommandWithOptions(options)
 	if !strings.Contains(cmd.Version, "v9.9.9") {
-		// cmd.Version was snapshotted from BuildString() before we
-		// overrode cli.Version. This is documented behaviour; the
-		// version subcommand is the canonical source of truth. We
-		// simply assert the field is non-empty.
-		t.Logf("cmd.Version snapshot before override: %q", cmd.Version)
+		t.Errorf("version field: got %q", cmd.Version)
 	}
 }

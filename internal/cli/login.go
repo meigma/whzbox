@@ -7,6 +7,7 @@ import (
 func newLoginCommand(app **App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "login",
+		Args:  cobra.NoArgs,
 		Short: "Sign in to Whizlabs",
 		Long: "Sign in to Whizlabs interactively. The resulting session is saved to\n" +
 			"disk and reused by subsequent commands until the refresh token expires.",

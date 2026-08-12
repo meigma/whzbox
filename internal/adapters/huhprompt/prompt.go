@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"charm.land/huh/v2"
@@ -12,18 +13,19 @@ import (
 	"github.com/meigma/whzbox/internal/ui"
 )
 
-// Prompt implements session.Prompt using charm.land/huh/v2 forms on
-// [os.Stdin] and [os.Stderr].
+// Prompt implements session.Prompt using charm.land/huh/v2 forms.
 //
 // The huh form is blocking: Credentials returns once the user submits,
 // cancels, or the context is cancelled. Forms inherit colour and theming
 // from ui.HuhTheme so the look matches the rest of the CLI.
-type Prompt struct{}
+type Prompt struct {
+	in  io.Reader
+	out io.Writer
+}
 
-// New returns a ready-to-use Prompt. It takes no arguments because all
-// relevant state lives inside the huh library.
-func New() *Prompt {
-	return &Prompt{}
+// New returns a prompt using the supplied terminal streams.
+func New(in io.Reader, out io.Writer) *Prompt {
+	return &Prompt{in: in, out: out}
 }
 
 // Credentials implements session.Prompt. It first checks that both
@@ -33,8 +35,10 @@ func New() *Prompt {
 //
 // When the user cancels the form (e.g. ctrl-c), session.ErrUserAborted
 // is returned. Other errors are wrapped with context.
-func (*Prompt) Credentials(ctx context.Context, defaultEmail string) (string, string, error) {
-	if !ui.IsInteractive(os.Stdin) || !ui.IsInteractive(os.Stderr) {
+func (p *Prompt) Credentials(ctx context.Context, defaultEmail string) (string, string, error) {
+	in, inOK := p.in.(*os.File)
+	out, outOK := p.out.(*os.File)
+	if !inOK || !outOK || !ui.IsInteractive(in) || !ui.IsInteractive(out) {
 		return "", "", session.ErrPromptUnavailable
 	}
 
@@ -53,7 +57,10 @@ func (*Prompt) Credentials(ctx context.Context, defaultEmail string) (string, st
 				Value(&password).
 				Validate(requireNonEmpty("password")),
 		),
-	).WithTheme(huh.ThemeFunc(ui.HuhTheme))
+	).
+		WithTheme(huh.ThemeFunc(ui.HuhTheme)).
+		WithInput(p.in).
+		WithOutput(p.out)
 
 	if err := form.RunWithContext(ctx); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {

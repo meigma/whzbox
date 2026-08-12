@@ -99,6 +99,24 @@ func TestExecCommand_DirectArgv_InjectsEnv(t *testing.T) {
 	}
 }
 
+func TestExecCommand_UsesInjectedBaseEnvironment(t *testing.T) {
+	now := time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC)
+	sb := sampleListEntry("111111111111", now.Add(time.Hour))
+	app := newListTestApp(t, now, sb)
+	app.Environ = func() []string { return []string{"WHZBOX_SENTINEL=injected"} }
+
+	cmd := newExecCommand(&app)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"aws", "--", "/usr/bin/env"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(out.String(), "WHZBOX_SENTINEL=injected") {
+		t.Errorf("child environment missing injected value:\n%s", out.String())
+	}
+}
+
 func TestExecCommand_ChildNonZero_PropagatesExitCode(t *testing.T) {
 	now := time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC)
 	sb := sampleListEntry("111111111111", now.Add(time.Hour))
@@ -149,5 +167,17 @@ func TestExecCommand_Shell_RequiresSingleArg(t *testing.T) {
 	err := cmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), "--shell takes exactly one") {
 		t.Errorf("want usage error, got %v", err)
+	}
+}
+
+func TestBuildExecArgv_UsesInjectedShell(t *testing.T) {
+	argv := buildExecArgv(nil, false, func(key string) string {
+		if key == "SHELL" {
+			return "/custom/shell"
+		}
+		return ""
+	})
+	if len(argv) != 1 || argv[0] != "/custom/shell" {
+		t.Errorf("argv: got %v, want [/custom/shell]", argv)
 	}
 }

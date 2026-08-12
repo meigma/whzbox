@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"charm.land/huh/v2"
@@ -15,6 +16,7 @@ import (
 func newDestroyCommand(app **App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "destroy",
+		Args:  cobra.NoArgs,
 		Short: "Destroy the active sandbox",
 		Long: "Tear down the user's currently active sandbox. All resources\n" +
 			"inside it will be permanently deleted.\n\n" +
@@ -22,7 +24,7 @@ func newDestroyCommand(app **App) *cobra.Command {
 			"In non-interactive environments --yes is required.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !(*app).Config.AssumeYes {
-				confirmed, err := confirmDestroy()
+				confirmed, err := confirmDestroy(cmd.InOrStdin(), cmd.ErrOrStderr())
 				if err != nil {
 					return err
 				}
@@ -40,8 +42,10 @@ func newDestroyCommand(app **App) *cobra.Command {
 // confirmDestroy shows an interactive huh confirm prompt. In a non-TTY
 // environment it returns ErrPromptUnavailable so the CLI layer maps to
 // exit 5 — scripts must explicitly pass --yes.
-func confirmDestroy() (bool, error) {
-	if !ui.IsInteractive(os.Stdin) || !ui.IsInteractive(os.Stderr) {
+func confirmDestroy(in io.Reader, out io.Writer) (bool, error) {
+	inFile, inOK := in.(*os.File)
+	outFile, outOK := out.(*os.File)
+	if !inOK || !outOK || !ui.IsInteractive(inFile) || !ui.IsInteractive(outFile) {
 		return false, fmt.Errorf("%w: --yes is required for non-interactive destroy", session.ErrPromptUnavailable)
 	}
 
@@ -55,7 +59,10 @@ func confirmDestroy() (bool, error) {
 				Negative("Cancel").
 				Value(&confirmed),
 		),
-	).WithTheme(huh.ThemeFunc(ui.HuhTheme))
+	).
+		WithTheme(huh.ThemeFunc(ui.HuhTheme)).
+		WithInput(in).
+		WithOutput(out)
 
 	if err := form.Run(); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
