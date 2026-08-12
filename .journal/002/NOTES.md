@@ -34,3 +34,19 @@ Findings:
 - Create returned console URL, username, password, timestamps, and three `resource_group` values. It did not return tenant, subscription, service-principal, client-secret, or other programmatic credentials.
 - `play-az-generate-mfa` returned a single `otp` field and teardown completed successfully.
 Decision: Implement console-only Azure support with resource-group metadata and an on-demand, non-persisted `whzbox mfa azure` command. Keep `exec azure` unsupported.
+
+## 2026-08-12 16:45 — Azure support implemented and accepted
+Implemented the approved Azure slice on `feat/azure-sandbox` and checkpointed it as `64a2d9d feat(azure): add console sandbox support`.
+
+Delivered behavior:
+- `create azure` supports one- through three-hour console sandboxes, participates in the existing cache/reuse lifecycle, and persists optional resource-group metadata without changing the state schema version.
+- `mfa azure` fetches the current Whizlabs OTP on demand and prints only the code; OTP values are marked sensitive and never persisted.
+- Azure list, styled output, and JSON output include provider-appropriate identity details. `exec azure` fails explicitly because the live contract provides no programmatic credentials.
+- The Whizlabs adapter shares the lab lifecycle with GCP while retaining provider-specific durations and MFA behavior.
+- User docs and reference docs now cover Azure creation, browser sign-in, MFA, state, JSON, exit behavior, and the console-only boundary.
+
+Verification:
+- `moon run root:check` passed, including formatting, lint, build, vet, unit tests, repository checks, and the MkDocs build.
+- `go test -v -tags integration -run '^TestIntegration_AzureSandboxLifecycle$' -timeout 12m ./internal/adapters/whizlabs/...` passed in 85.43 seconds against the live service.
+- The acceptance requested the documented three-hour maximum, observed three resource groups, generated MFA, and destroyed the sandbox immediately.
+- `git diff --check` passed before the implementation commit, and the temporary credential symlink and generated Python cache were removed.
