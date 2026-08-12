@@ -1,5 +1,6 @@
-# Exercise the tagged binary build on every pull request without publishing
-# release assets or updating the Homebrew tap and Scoop bucket.
+# Exercise the binary release matrix on every pull request without publishing
+# release assets or updating the Homebrew tap and Scoop bucket. Snapshot mode is
+# required because verifiable module-proxy builds can resolve only pushed tags.
 
 name: Release Dry Run
 
@@ -45,7 +46,7 @@ jobs:
         with:
           distribution: goreleaser
           version: v2.14.3
-          args: release --clean --skip=publish,sign
+          args: release --snapshot --clean --skip=sign
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GORELEASER_CURRENT_TAG: v0.0.0-dryrun.${{ github.run_id }}.${{ github.run_attempt }}
@@ -55,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="0.0.0-dryrun.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          version="v0.0.0-dryrun.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}-dev"
           expected_signer="${GITHUB_REPOSITORY}/.github/workflows/attest.yml"
           actual_signer="$(awk -F'"' '/signer_workflow/ { print $2; exit }' ghd.toml)"
 
@@ -93,7 +94,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="0.0.0-dryrun.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          version="v0.0.0-dryrun.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}-dev"
           host_os="$(go env GOHOSTOS)"
           host_arch="$(go env GOHOSTARCH)"
           bin="$(jq -r --arg os "$host_os" --arg arch "$host_arch" '.[] | select(.type == "Binary" and .goos == $os and .goarch == $arch) | .path' dist/artifacts.json)"
