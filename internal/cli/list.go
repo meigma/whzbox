@@ -11,6 +11,7 @@ import (
 func newListCommand(app **App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
+		Args:  cobra.NoArgs,
 		Short: "List cached sandboxes",
 		Long: "Show every sandbox in the local cache, one row per provider kind.\n\n" +
 			"This is a read-only view of the state file — it does not talk to\n" +

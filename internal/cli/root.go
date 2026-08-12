@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // NewRootCommand returns the root whzbox cobra command with persistent
@@ -14,19 +13,31 @@ import (
 // PersistentPreRunE, so that command RunE funcs see a fully-initialised
 // config, logger, and clock regardless of which command was invoked.
 func NewRootCommand() *cobra.Command {
-	vp := viper.New()
+	return NewRootCommandWithOptions(DefaultOptions())
+}
+
+// NewRootCommandWithOptions returns a root command using explicit process
+// streams, environment access, configuration, and build metadata.
+func NewRootCommandWithOptions(options Options) *cobra.Command {
+	options = options.withDefaults()
 	var app *App
 
 	cmd := &cobra.Command{
 		Use:           "whzbox",
 		Short:         "Spin up cloud sandboxes from Whizlabs",
 		Long:          "whzbox spins up on-demand cloud sandboxes through Whizlabs, fetches their credentials, and verifies they work.",
-		Version:       BuildString(),
+		Version:       options.Build.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			return initApp(vp, cmd, &app)
+			return initApp(options, cmd, &app)
 		},
+	}
+	cmd.SetIn(options.In)
+	cmd.SetOut(options.Out)
+	cmd.SetErr(options.Err)
+	if options.Args != nil {
+		cmd.SetArgs(options.Args)
 	}
 
 	// Persistent flags. Every value here is also reachable via the
@@ -56,7 +67,8 @@ func NewRootCommand() *cobra.Command {
 // initApp configures Viper (env prefix + flag binding) and constructs the
 // shared *App container. It is called once per command execution from
 // PersistentPreRunE.
-func initApp(vp *viper.Viper, cmd *cobra.Command, app **App) error {
+func initApp(options Options, cmd *cobra.Command, app **App) error {
+	vp := options.Viper
 	vp.SetEnvPrefix("WHZBOX")
 	vp.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 	vp.AutomaticEnv()
@@ -65,12 +77,12 @@ func initApp(vp *viper.Viper, cmd *cobra.Command, app **App) error {
 		return err
 	}
 
-	newApp := NewApp
+	appFactory := newApp
 	if isVersionCommand(cmd) {
-		newApp = NewMetadataApp
+		appFactory = newMetadataApp
 	}
 
-	a, err := newApp(vp)
+	a, err := appFactory(vp, options)
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@ import (
 func newLogoutCommand(app **App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout",
+		Args:  cobra.NoArgs,
 		Short: "Clear the cached session",
 		Long: "Remove the cached Whizlabs tokens from disk. Subsequent commands\n" +
 			"will prompt for credentials again.",
