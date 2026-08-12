@@ -40,7 +40,7 @@ func newListTestApp(t *testing.T, now time.Time, entries ...*sandbox.Sandbox) *A
 	svc := sandbox.NewService(
 		&stubAuth{},
 		&stubManager{},
-		map[sandbox.Kind]sandbox.Provider{sandbox.KindAWS: ver},
+		testProviderMap(ver),
 		store,
 		&clock.Fake{T: now},
 		nil,
@@ -104,6 +104,28 @@ func TestListCommand_ActiveAndExpired(t *testing.T) {
 	}
 	if !strings.Contains(got, "222222222222") || !strings.Contains(got, "expired") {
 		t.Errorf("missing expired row:\n%s", got)
+	}
+}
+
+func TestListCommand_GCPUsesProjectID(t *testing.T) {
+	now := time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC)
+	gcp := &sandbox.Sandbox{
+		Kind:      sandbox.KindGCP,
+		Slug:      "gcp-sandbox",
+		Identity:  sandbox.Identity{ProjectID: "project-12345"},
+		ExpiresAt: now.Add(time.Hour),
+	}
+	app := newListTestApp(t, now, gcp)
+
+	cmd := newListCommand(&app)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(out.String(), "ACCOUNT/PROJECT") || !strings.Contains(out.String(), "project-12345") {
+		t.Errorf("GCP list row missing project identity:\n%s", out.String())
 	}
 }
 

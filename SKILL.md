@@ -1,19 +1,21 @@
 ---
 name: whzbox-cli
-description: Use when the whzbox CLI is installed and you need to create, reuse, inspect, use, or destroy AWS sandboxes. Covers login, create aws, list, status, exec, destroy, JSON output, and the cache and session behavior that matters for automation.
+description: Use when the whzbox CLI is installed and you need to create, reuse, inspect, use, or destroy AWS or GCP sandboxes. Covers login, create, list, status, AWS exec, destroy, JSON output, and cache and session behavior.
 ---
 
 # whzbox CLI
 
-Use this skill when the `whzbox` CLI is installed and you need an AWS sandbox through Whizlabs.
+Use this skill when the `whzbox` CLI is installed and you need an AWS or GCP sandbox through Whizlabs.
 
 ## Quick model
 
 - `whzbox` is a Go CLI for Whizlabs cloud sandboxes.
-- AWS is the only supported provider today.
+- AWS provides console and programmatic credentials.
+- GCP provides browser-console credentials and project metadata only. `exec gcp` is unavailable.
 - `login` stores a cached Whizlabs session locally.
 - `logout` clears the cached session but can leave cached sandboxes in place.
 - `create aws` creates or reuses an AWS sandbox, verifies credentials, and prints them.
+- `create gcp` creates or reuses a GCP console sandbox and prints its login and project details.
 - `list`, `status`, and `exec` are local-state commands. They do not talk to Whizlabs.
 - `destroy` tears down the active sandbox upstream and clears cached sandbox entries locally.
 
@@ -23,6 +25,8 @@ The default goal for an agent is usually:
 2. Otherwise create a new AWS sandbox.
 3. Run commands through `whzbox exec aws -- ...` when possible instead of manually copying credentials.
 4. Destroy the sandbox only when the task or user asks for cleanup.
+
+Whizlabs permits one active sandbox per user. Destroy the current sandbox before creating a different provider.
 
 ## Common workflow
 
@@ -61,6 +65,12 @@ whzbox destroy --yes
   - Supports `--json`.
   - Prefer this over trying to stitch credentials together from cached state yourself.
 
+- `whzbox create gcp`
+  - Creates or reuses a browser-console sandbox.
+  - Currently supports the default `1h` duration only.
+  - Supports `--json`.
+  - Does not return a service account, access token, or other credential for `gcloud` or an SDK.
+
 - `whzbox logout`
   - Clears the cached session.
   - Can preserve cached sandboxes.
@@ -81,6 +91,9 @@ whzbox destroy --yes
   - Use `-s` only when you need shell parsing.
   - Prefer this for AWS CLI calls and one-off commands.
 
+- `whzbox exec gcp`
+  - Always fails with a console-only explanation.
+
 - `whzbox destroy`
   - Destroys the active sandbox upstream.
   - Prompts unless `--yes` is set.
@@ -91,6 +104,7 @@ whzbox destroy --yes
 Use JSON only with:
 
 - `whzbox create aws --json`
+- `whzbox create gcp --json`
 - `whzbox list --json`
 
 Do not assume `--json` changes output for `status`, `login`, `logout`, `destroy`, `exec`, `version`, or `completion`.

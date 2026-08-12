@@ -12,6 +12,8 @@ import (
 	"github.com/meigma/whzbox/internal/core/session"
 )
 
+const gcpSandboxSlug = "gcp-sandbox"
+
 // exchangeForPlayToken swaps a main-API JWT for a play.whizlabs.com-
 // scoped token. The play token is used for all sandbox operations and
 // has a separate lifetime from the main JWT; it is not persisted and is
@@ -50,6 +52,18 @@ type playCreateData struct {
 	EndTime      string `json:"end_time"`
 }
 
+// playCreateLabData is the successful-response body for play-create-lab.
+// GCP exposes only browser-console credentials and project metadata.
+type playCreateLabData struct {
+	LoginLink   string `json:"login_link"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	ProjectID   string `json:"project_id"`
+	ProjectName string `json:"project_name"`
+	StartTime   string `json:"start_time"`
+	EndTime     string `json:"end_time"`
+}
+
 // Create implements sandbox.Manager.
 func (c *Client) Create(
 	ctx context.Context,
@@ -57,6 +71,9 @@ func (c *Client) Create(
 	slug string,
 	duration time.Duration,
 ) (*sandbox.Sandbox, error) {
+	if slug == gcpSandboxSlug && duration != time.Hour {
+		return nil, fmt.Errorf("GCP sandbox duration must be 1h, got %v", duration)
+	}
 	hours, err := durationToHours(duration)
 	if err != nil {
 		return nil, err
@@ -66,6 +83,9 @@ func (c *Client) Create(
 	playJWT, err := c.exchangeForPlayToken(ctx, tokens)
 	if err != nil {
 		return nil, err
+	}
+	if slug == gcpSandboxSlug {
+		return c.createGCPLab(ctx, playJWT, slug, hours, requestedDuration)
 	}
 
 	req := map[string]any{
@@ -106,12 +126,66 @@ func (c *Client) Create(
 	}, nil
 }
 
+func (c *Client) createGCPLab(
+	ctx context.Context,
+	playJWT,
+	slug string,
+	hours int,
+	requestedDuration time.Duration,
+) (*sandbox.Sandbox, error) {
+	req := labRequest(playJWT, slug, hours)
+	var env envelope[playCreateLabData]
+	err := c.postJSON(
+		ctx,
+		c.playURL+"/api/web/lab/play-create-lab",
+		req,
+		&env,
+		withBearer(playJWT),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !env.Status || env.Data.Username == "" || env.Data.Password == "" || env.Data.ProjectID == "" {
+		return nil, fmt.Errorf("create GCP lab: %s", env.Message)
+	}
+	startedAt, expiresAt := c.resolveSandboxTimes(ctx, env.Data.StartTime, env.Data.EndTime, requestedDuration)
+
+	return &sandbox.Sandbox{
+		Slug: slug,
+		Console: sandbox.Console{
+			URL:      env.Data.LoginLink,
+			Username: env.Data.Username,
+			Password: env.Data.Password,
+		},
+		Identity: sandbox.Identity{
+			ProjectID:   env.Data.ProjectID,
+			ProjectName: env.Data.ProjectName,
+		},
+		StartedAt: startedAt,
+		ExpiresAt: expiresAt,
+	}, nil
+}
+
+func labRequest(playJWT, slug string, hours int) map[string]any {
+	return map[string]any{
+		"task_slug":        slug,
+		"sandbox_duration": hours,
+		"course_id":        1,
+		fieldAccessToken:   playJWT,
+		"is_sandbox_3":     true,
+		"pt":               1,
+	}
+}
+
 // Commit implements sandbox.Manager by calling play-update-sandbox.
 // The upstream update call registers ownership of the sandbox with
 // the user account; without it, play-end-sandbox later returns
 // "Sandbox Not Found". This two-phase dance was discovered during
 // feasibility testing.
 func (c *Client) Commit(ctx context.Context, tokens session.Tokens, slug string, duration time.Duration) error {
+	if slug == gcpSandboxSlug && duration != time.Hour {
+		return fmt.Errorf("GCP sandbox duration must be 1h, got %v", duration)
+	}
 	hours, err := durationToHours(duration)
 	if err != nil {
 		return err
@@ -120,6 +194,23 @@ func (c *Client) Commit(ctx context.Context, tokens session.Tokens, slug string,
 	playJWT, err := c.exchangeForPlayToken(ctx, tokens)
 	if err != nil {
 		return err
+	}
+	if slug == gcpSandboxSlug {
+		var env envelope[json.RawMessage]
+		err = c.postJSON(
+			ctx,
+			c.playURL+"/api/web/lab/play-update-user-task-status",
+			labRequest(playJWT, slug, hours),
+			&env,
+			withBearer(playJWT),
+		)
+		if err != nil {
+			return err
+		}
+		if !env.Status {
+			return fmt.Errorf("commit GCP lab: %s", env.Message)
+		}
+		return nil
 	}
 
 	req := map[string]any{
@@ -149,10 +240,13 @@ func (c *Client) Commit(ctx context.Context, tokens session.Tokens, slug string,
 //
 // A "Sandbox Not Found" response is translated to ErrNoActiveSandbox
 // so callers can distinguish "no-op" from real failures.
-func (c *Client) Destroy(ctx context.Context, tokens session.Tokens) error {
+func (c *Client) Destroy(ctx context.Context, tokens session.Tokens, slug string) error {
 	playJWT, err := c.exchangeForPlayToken(ctx, tokens)
 	if err != nil {
 		return err
+	}
+	if slug == gcpSandboxSlug {
+		return c.destroyGCPLab(ctx, playJWT, slug)
 	}
 
 	req := map[string]any{
@@ -176,6 +270,33 @@ func (c *Client) Destroy(ctx context.Context, tokens session.Tokens) error {
 			return fmt.Errorf("%w: %s", sandbox.ErrNoActiveSandbox, env.Message)
 		}
 		return fmt.Errorf("destroy sandbox: %s", env.Message)
+	}
+	return nil
+}
+
+func (c *Client) destroyGCPLab(ctx context.Context, playJWT, slug string) error {
+	req := map[string]any{
+		"task_slug":      slug,
+		"error_id":       1,
+		fieldAccessToken: playJWT,
+	}
+	var env envelope[json.RawMessage]
+	err := c.postJSON(
+		ctx,
+		c.playURL+"/api/web/lab/play-end-lab",
+		req,
+		&env,
+		withBearer(playJWT),
+	)
+	if err != nil {
+		return err
+	}
+	if !env.Status {
+		message := strings.ToLower(env.Message)
+		if strings.Contains(message, "not found") || strings.Contains(message, "no active") {
+			return fmt.Errorf("%w: %s", sandbox.ErrNoActiveSandbox, env.Message)
+		}
+		return fmt.Errorf("destroy GCP lab: %s", env.Message)
 	}
 	return nil
 }

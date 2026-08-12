@@ -78,6 +78,8 @@ Example:
 }
 ```
 
+GCP entries use the same schema. Their `credentials` object contains empty AWS fields, and `identity` adds `project_id` and `project_name`.
+
 ## Lifecycle rules
 
 ### Session entries
@@ -93,6 +95,7 @@ Example:
 - verification failure still saves the sandbox entry.
 - `destroy` clears all cached sandboxes after a successful destroy.
 - `list` and `exec` read the sandbox cache directly.
+- `exec` uses cached AWS credentials. GCP remains browser-console only.
 
 ## Invalid-state handling
 

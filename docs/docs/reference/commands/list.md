@@ -33,7 +33,7 @@ This command takes no positional arguments.
 
 ## Output
 
-- Styled output: a table with `KIND`, `ACCOUNT`, `STATUS`, and `EXPIRES`
+- Styled output: a table with `KIND`, `ACCOUNT/PROJECT`, `STATUS`, and `EXPIRES`
 - JSON output: an array of sandbox objects. See [JSON output schemas](../json-output-schemas.md).
 
 ## Exit behavior

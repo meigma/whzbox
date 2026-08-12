@@ -47,7 +47,7 @@ func (s *stubManager) Commit(_ context.Context, _ session.Tokens, _ string, _ ti
 	return s.commitErr
 }
 
-func (s *stubManager) Destroy(_ context.Context, _ session.Tokens) error {
+func (s *stubManager) Destroy(_ context.Context, _ session.Tokens, _ string) error {
 	return s.destroyErr
 }
 
@@ -58,10 +58,22 @@ func (s *stubManager) Active(_ context.Context, _ session.Tokens) (*sandbox.Sand
 type stubVerifier struct {
 	identity sandbox.Identity
 	err      error
+	kind     sandbox.Kind
+	slug     string
 }
 
-func (s *stubVerifier) Kind() sandbox.Kind { return sandbox.KindAWS }
-func (s *stubVerifier) Slug() string       { return "aws-sandbox" }
+func (s *stubVerifier) Kind() sandbox.Kind {
+	if s.kind == "" {
+		return sandbox.KindAWS
+	}
+	return s.kind
+}
+func (s *stubVerifier) Slug() string {
+	if s.slug == "" {
+		return "aws-sandbox"
+	}
+	return s.slug
+}
 func (s *stubVerifier) VerifyCredentials(_ context.Context, _ sandbox.Credentials) (sandbox.Identity, error) {
 	return s.identity, s.err
 }
@@ -87,6 +99,14 @@ type stubAuth struct {
 // cache reuse.
 type stubSandboxStore struct{}
 
+func testProviderMap(providers ...sandbox.Provider) map[sandbox.Kind]sandbox.Provider {
+	out := make(map[sandbox.Kind]sandbox.Provider, len(providers))
+	for _, provider := range providers {
+		out[provider.Kind()] = provider
+	}
+	return out
+}
+
 func (stubSandboxStore) Load(_ context.Context, _ sandbox.Kind) (*sandbox.Sandbox, bool, error) {
 	return nil, false, nil
 }
@@ -105,7 +125,7 @@ func newSandboxTestApp(mgr *stubManager, ver *stubVerifier, opts ...func(*App)) 
 	svc := sandbox.NewService(
 		&stubAuth{},
 		mgr,
-		map[sandbox.Kind]sandbox.Provider{sandbox.KindAWS: ver},
+		testProviderMap(ver),
 		stubSandboxStore{},
 		clock.Real{},
 		nil,
@@ -229,13 +249,50 @@ func TestCreateCommand_JSON(t *testing.T) {
 	}
 }
 
+func TestCreateCommand_GCPConsoleOnly(t *testing.T) {
+	mgr := &stubManager{createResult: &sandbox.Sandbox{
+		Console: sandbox.Console{
+			URL:      "https://console.cloud.google.com/",
+			Username: "student@example.com",
+			Password: "gcp-password",
+		},
+		Identity:  sandbox.Identity{ProjectID: "project-12345", ProjectName: "project-12345"},
+		StartedAt: time.Now(),
+		ExpiresAt: time.Now().Add(time.Hour),
+	}}
+	ver := &stubVerifier{
+		kind: sandbox.KindGCP,
+		slug: "gcp-sandbox",
+		err:  sandbox.ErrVerificationUnsupported,
+	}
+	app := newSandboxTestApp(mgr, ver)
+
+	cmd := newCreateCommand(&app)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"gcp"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	for _, want := range []string{"project-12345", "Browser console only", "student@example.com", "gcp-password"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output missing %q:\n%s", want, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "AWS_ACCESS_KEY_ID") {
+		t.Errorf("GCP output should not render AWS credentials:\n%s", out.String())
+	}
+}
+
 func TestCreateCommand_InvalidProvider(t *testing.T) {
 	mgr := &stubManager{}
 	ver := &stubVerifier{}
 	app := newSandboxTestApp(mgr, ver)
 
 	cmd := newCreateCommand(&app)
-	cmd.SetArgs([]string{"gcp"})
+	cmd.SetArgs([]string{"azure"})
 	err := cmd.Execute()
 	if err == nil {
 		t.Fatal("expected error for invalid provider")

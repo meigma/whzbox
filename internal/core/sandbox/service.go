@@ -81,6 +81,9 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 	} else if found {
 		return cached, nil
 	}
+	if err := s.rejectOtherActiveSandbox(ctx, kind); err != nil {
+		return nil, err
+	}
 
 	tokens, err := s.session.EnsureValid(ctx)
 	if err != nil {
@@ -99,7 +102,7 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 		// broker didn't register ownership. Try to tear it down so
 		// we don't leak a phantom sandbox. If that also fails, log
 		// the secondary error and still return the original cause.
-		if derr := s.manager.Destroy(ctx, tokens); derr != nil {
+		if derr := s.manager.Destroy(ctx, tokens, prov.Slug()); derr != nil {
 			s.logger.ErrorContext(ctx, "commit failed and cleanup destroy also failed",
 				"commit_err", cerr,
 				"destroy_err", derr,
@@ -109,10 +112,14 @@ func (s *Service) Create(ctx context.Context, kind Kind, duration time.Duration)
 	}
 
 	identity, verr := prov.VerifyCredentials(ctx, sb.Credentials)
-	if verr == nil {
+	switch {
+	case verr == nil:
 		sb.Identity = identity
 		sb.Verified = true
-	} else {
+	case errors.Is(verr, ErrVerificationUnsupported):
+		verr = nil
+		sb.Verified = false
+	default:
 		sb.Verified = false
 	}
 
@@ -150,11 +157,34 @@ func (s *Service) loadReusableSandbox(ctx context.Context, kind Kind, prov Provi
 	return s.reverifyCachedSandbox(ctx, cached, prov)
 }
 
+func (s *Service) rejectOtherActiveSandbox(ctx context.Context, kind Kind) error {
+	sandboxes, err := s.store.LoadAll(ctx)
+	if err != nil {
+		s.logger.WarnContext(ctx, "sandbox cache list failed; continuing without active-provider check", "err", err)
+		return nil
+	}
+	for _, sb := range sandboxes {
+		if sb != nil && sb.Kind != kind && sb.ExpiresAt.After(s.clock.Now()) {
+			return fmt.Errorf(
+				"%w: %s sandbox is active; destroy it before creating %s",
+				ErrActiveSandbox,
+				sb.Kind,
+				kind,
+			)
+		}
+	}
+	return nil
+}
+
 func (s *Service) reverifyCachedSandbox(ctx context.Context, cached *Sandbox, prov Provider) (*Sandbox, bool, error) {
 	s.logger.InfoContext(ctx, "re-verifying cached sandbox",
 		"kind", cached.Kind, "expires_at", cached.ExpiresAt)
 
 	identity, err := prov.VerifyCredentials(ctx, cached.Credentials)
+	if errors.Is(err, ErrVerificationUnsupported) {
+		s.logSandboxReuse(ctx, cached)
+		return cached, true, nil
+	}
 	if err != nil {
 		cached.Verified = false
 		s.saveSandboxCache(ctx, cached, "failed to update cached sandbox")
@@ -184,11 +214,12 @@ func (s *Service) logSandboxReuse(ctx context.Context, sb *Sandbox) {
 // nothing to destroy; callers can use [errors.Is] to distinguish this
 // from other failures.
 func (s *Service) Destroy(ctx context.Context) error {
+	slug := s.cachedSandboxSlug(ctx)
 	tokens, err := s.session.EnsureValid(ctx)
 	if err != nil {
 		return err
 	}
-	err = s.manager.Destroy(ctx, tokens)
+	err = s.manager.Destroy(ctx, tokens, slug)
 	if err != nil {
 		if errors.Is(err, ErrNoActiveSandbox) {
 			return err
@@ -200,6 +231,20 @@ func (s *Service) Destroy(ctx context.Context) error {
 	}
 	s.logger.InfoContext(ctx, "sandbox destroyed")
 	return nil
+}
+
+func (s *Service) cachedSandboxSlug(ctx context.Context) string {
+	sandboxes, err := s.store.LoadAll(ctx)
+	if err != nil {
+		s.logger.WarnContext(ctx, "sandbox cache list failed; using default destroy route", "err", err)
+		return ""
+	}
+	for _, sb := range sandboxes {
+		if sb != nil && sb.Slug != "" {
+			return sb.Slug
+		}
+	}
+	return ""
 }
 
 // List returns every cached sandbox. Cache-only: no session refresh,

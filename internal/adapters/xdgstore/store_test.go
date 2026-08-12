@@ -247,6 +247,39 @@ func TestStore_SandboxRoundTrip(t *testing.T) {
 	}
 }
 
+func TestStore_GCPConsoleSandboxRoundTrip(t *testing.T) {
+	s := tempStore(t)
+	orig := &sandbox.Sandbox{
+		Kind: sandbox.KindGCP,
+		Slug: "gcp-sandbox",
+		Console: sandbox.Console{
+			URL:      "https://console.cloud.google.com/",
+			Username: "student@example.com",
+			Password: "secret",
+		},
+		Identity:  sandbox.Identity{ProjectID: "project-12345", ProjectName: "project-12345"},
+		StartedAt: time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+		ExpiresAt: time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC),
+	}
+
+	if err := s.SaveSandbox(context.Background(), orig); err != nil {
+		t.Fatalf("SaveSandbox: %v", err)
+	}
+	got, found, err := s.LoadSandbox(context.Background(), sandbox.KindGCP)
+	if err != nil {
+		t.Fatalf("LoadSandbox: %v", err)
+	}
+	if !found {
+		t.Fatal("LoadSandbox returned found=false after Save")
+	}
+	if got.Identity.ProjectID != orig.Identity.ProjectID || got.Identity.ProjectName != orig.Identity.ProjectName {
+		t.Errorf("project identity mismatch: got %+v want %+v", got.Identity, orig.Identity)
+	}
+	if got.Console != orig.Console {
+		t.Errorf("console mismatch: got %+v want %+v", got.Console, orig.Console)
+	}
+}
+
 func TestStore_LoadSandboxMissing(t *testing.T) {
 	s := tempStore(t)
 	_, found, err := s.LoadSandbox(context.Background(), sandbox.KindAWS)

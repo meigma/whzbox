@@ -36,7 +36,37 @@ func RenderSandbox(w io.Writer, sb *sandbox.Sandbox) {
 
 	label := lipgloss.NewStyle().Foreground(Dim).Width(labelWidth)
 
-	rows := []struct{ k, v string }{
+	rows := sandboxRows(sb)
+
+	var buf strings.Builder
+	for _, r := range rows {
+		if r.k == "" && r.v == "" {
+			buf.WriteString("\n")
+			continue
+		}
+		buf.WriteString(label.Render(r.k) + "  " + r.v + "\n")
+	}
+	body := strings.TrimRight(buf.String(), "\n")
+
+	fpf(w, "%s\n\n", SandboxFrame().Render(body))
+	fpf(w, "Destroy with:  whzbox destroy\n")
+}
+
+func sandboxRows(sb *sandbox.Sandbox) []struct{ k, v string } {
+	if sb.Kind == sandbox.KindGCP {
+		return []struct{ k, v string }{
+			{"Project ID", sb.Identity.ProjectID},
+			{"Project name", sb.Identity.ProjectName},
+			{"Access", "Browser console only"},
+			{"", ""},
+			{"Expires", formatExpiry(sb.ExpiresAt)},
+			{"", ""},
+			{"Console", sb.Console.URL},
+			{"Username", sb.Console.Username},
+			{"Password", sb.Console.Password},
+		}
+	}
+	return []struct{ k, v string }{
 		{"Account", sb.Identity.Account},
 		{"User", sb.Identity.UserID},
 		{"ARN", sb.Identity.ARN},
@@ -51,19 +81,6 @@ func RenderSandbox(w io.Writer, sb *sandbox.Sandbox) {
 		{"AWS_ACCESS_KEY_ID", sb.Credentials.AccessKey},
 		{"AWS_SECRET_ACCESS_KEY", sb.Credentials.SecretKey},
 	}
-
-	var buf strings.Builder
-	for _, r := range rows {
-		if r.k == "" && r.v == "" {
-			buf.WriteString("\n")
-			continue
-		}
-		buf.WriteString(label.Render(r.k) + "  " + r.v + "\n")
-	}
-	body := strings.TrimRight(buf.String(), "\n")
-
-	fpf(w, "%s\n\n", SandboxFrame().Render(body))
-	fpf(w, "Destroy with:  whzbox destroy\n")
 }
 
 // SandboxJSON is the machine-readable shape emitted by --json. It lives
@@ -91,10 +108,12 @@ type ConsoleJSON struct {
 }
 
 type IdentityJSON struct {
-	Account string `json:"account"`
-	UserID  string `json:"user_id"`
-	ARN     string `json:"arn"`
-	Region  string `json:"region"`
+	Account     string `json:"account"`
+	UserID      string `json:"user_id"`
+	ARN         string `json:"arn"`
+	Region      string `json:"region"`
+	ProjectID   string `json:"project_id,omitempty"`
+	ProjectName string `json:"project_name,omitempty"`
 }
 
 // sandboxToJSON converts the domain Sandbox into its JSON DTO.
@@ -112,10 +131,12 @@ func sandboxToJSON(sb *sandbox.Sandbox) SandboxJSON {
 			Password: sb.Console.Password,
 		},
 		Identity: IdentityJSON{
-			Account: sb.Identity.Account,
-			UserID:  sb.Identity.UserID,
-			ARN:     sb.Identity.ARN,
-			Region:  sb.Identity.Region,
+			Account:     sb.Identity.Account,
+			UserID:      sb.Identity.UserID,
+			ARN:         sb.Identity.ARN,
+			Region:      sb.Identity.Region,
+			ProjectID:   sb.Identity.ProjectID,
+			ProjectName: sb.Identity.ProjectName,
 		},
 		StartedAt: sb.StartedAt,
 		ExpiresAt: sb.ExpiresAt,
@@ -141,7 +162,7 @@ func RenderSandboxList(w io.Writer, sbs []*sandbox.Sandbox, now time.Time) {
 		fpf(w, "(no sandboxes cached)\n")
 		return
 	}
-	fpf(w, "%-6s  %-14s  %-7s  %s\n", "KIND", "ACCOUNT", "STATUS", "EXPIRES")
+	fpf(w, "%-6s  %-18s  %-7s  %s\n", "KIND", "ACCOUNT/PROJECT", "STATUS", "EXPIRES")
 	for _, sb := range sbs {
 		if sb == nil {
 			continue
@@ -150,9 +171,13 @@ func RenderSandboxList(w io.Writer, sbs []*sandbox.Sandbox, now time.Time) {
 		if !sb.ExpiresAt.After(now) {
 			status = "expired"
 		}
-		fpf(w, "%-6s  %-14s  %-7s  %s\n",
+		identifier := sb.Identity.Account
+		if identifier == "" {
+			identifier = sb.Identity.ProjectID
+		}
+		fpf(w, "%-6s  %-18s  %-7s  %s\n",
 			string(sb.Kind),
-			sb.Identity.Account,
+			identifier,
 			status,
 			formatExpiry(sb.ExpiresAt),
 		)

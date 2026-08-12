@@ -44,6 +44,7 @@ type fakeManager struct {
 	lastCreateDuration time.Duration
 	lastCommitSlug     string
 	lastCommitDuration time.Duration
+	lastDestroySlug    string
 }
 
 func (f *fakeManager) Create(
@@ -65,8 +66,9 @@ func (f *fakeManager) Commit(_ context.Context, _ session.Tokens, slug string, d
 	return f.commitErr
 }
 
-func (f *fakeManager) Destroy(_ context.Context, _ session.Tokens) error {
+func (f *fakeManager) Destroy(_ context.Context, _ session.Tokens, slug string) error {
 	f.destroyCalls++
+	f.lastDestroySlug = slug
 	return f.destroyErr
 }
 
@@ -110,6 +112,22 @@ type fakeStore struct {
 	saved     *sandbox.Sandbox
 	saveCalls int
 	clearAll  int
+}
+
+func providerSet(providers ...sandbox.Provider) map[sandbox.Kind]sandbox.Provider {
+	out := make(map[sandbox.Kind]sandbox.Provider, len(providers))
+	for _, provider := range providers {
+		out[provider.Kind()] = provider
+	}
+	return out
+}
+
+func sandboxSet(sandboxes ...*sandbox.Sandbox) map[sandbox.Kind]*sandbox.Sandbox {
+	out := make(map[sandbox.Kind]*sandbox.Sandbox, len(sandboxes))
+	for _, sb := range sandboxes {
+		out[sb.Kind] = sb
+	}
+	return out
 }
 
 func (f *fakeStore) Load(_ context.Context, kind sandbox.Kind) (*sandbox.Sandbox, bool, error) {

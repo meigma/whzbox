@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/meigma/whzbox/internal/adapters/whizlabs"
 	"github.com/meigma/whzbox/internal/config"
 	"github.com/meigma/whzbox/internal/core/sandbox"
@@ -25,9 +28,12 @@ import (
 type playRouter struct {
 	playToken string
 
-	createResp []byte
-	updateResp []byte
-	endResp    []byte
+	createResp    []byte
+	updateResp    []byte
+	endResp       []byte
+	labCreateResp []byte
+	labUpdateResp []byte
+	labEndResp    []byte
 
 	calls   []string
 	bodies  map[string][]byte
@@ -59,6 +65,12 @@ func (r *playRouter) handler() http.Handler {
 			_, _ = w.Write(r.updateResp)
 		case "/api/web/play-sandbox/play-end-sandbox":
 			_, _ = w.Write(r.endResp)
+		case "/api/web/lab/play-create-lab":
+			_, _ = w.Write(r.labCreateResp)
+		case "/api/web/lab/play-update-user-task-status":
+			_, _ = w.Write(r.labUpdateResp)
+		case "/api/web/lab/play-end-lab":
+			_, _ = w.Write(r.labEndResp)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -103,6 +115,22 @@ func defaultUpdateResp() []byte {
 
 func defaultEndResp() []byte {
 	return []byte(`{"status":true,"message":"destroyed","data":null}`)
+}
+
+func defaultGCPCreateResp() []byte {
+	return []byte(`{
+		"status": true,
+		"message": "ok",
+		"data": {
+			"login_link": "https://console.cloud.google.com/",
+			"username": "student@example.com",
+			"password": "gcp-password",
+			"project_id": "project-12345",
+			"project_name": "project-12345",
+			"start_time": "2026-04-11 12:00:00",
+			"end_time": "2026-04-11 13:00:00"
+		}
+	}`)
 }
 
 func newClient(baseURL string) *whizlabs.Client {
@@ -195,6 +223,45 @@ func TestClient_Create_DurationRoundedUp(t *testing.T) {
 	body := router.bodyAt("/api/web/play-sandbox/play-create-sandbox")
 	if body["duration"] != "2" {
 		t.Errorf("90m should round up to 2h, got %v", body["duration"])
+	}
+}
+
+func TestClient_Create_GCPConsoleSandbox(t *testing.T) {
+	router := newPlayRouter()
+	router.labCreateResp = defaultGCPCreateResp()
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+
+	sb, err := newClient(srv.URL).Create(context.Background(), sampleTokens(), "gcp-sandbox", time.Hour)
+	require.NoError(t, err)
+	require.NotNil(t, sb)
+
+	assert.Equal(t, "gcp-sandbox", sb.Slug)
+	assert.Equal(t, "project-12345", sb.Identity.ProjectID)
+	assert.Equal(t, "project-12345", sb.Identity.ProjectName)
+	assert.Equal(t, "student@example.com", sb.Console.Username)
+	assert.Empty(t, sb.Credentials.AccessKey)
+	assert.Equal(t, 1, router.countCalls("/api/web/lab/play-create-lab"))
+
+	body := router.bodyAt("/api/web/lab/play-create-lab")
+	assert.Equal(t, "gcp-sandbox", body["task_slug"])
+	assert.InDelta(t, 1, body["sandbox_duration"], 0)
+	assert.InDelta(t, 1, body["course_id"], 0)
+	assert.Equal(t, true, body["is_sandbox_3"])
+	assert.Equal(t, router.playToken, body["access_token"])
+}
+
+func TestClient_Create_GCPRejectsUnsupportedDurationBeforeNetwork(t *testing.T) {
+	for _, duration := range []time.Duration{30 * time.Minute, 2 * time.Hour} {
+		t.Run(duration.String(), func(t *testing.T) {
+			router := newPlayRouter()
+			srv := httptest.NewServer(router.handler())
+			defer srv.Close()
+
+			_, err := newClient(srv.URL).Create(context.Background(), sampleTokens(), "gcp-sandbox", duration)
+			require.ErrorContains(t, err, "GCP sandbox duration must be 1h")
+			assert.Empty(t, router.calls)
+		})
 	}
 }
 
@@ -349,6 +416,21 @@ func TestClient_Commit_HappyPath(t *testing.T) {
 	}
 }
 
+func TestClient_Commit_GCPConsoleSandbox(t *testing.T) {
+	router := newPlayRouter()
+	router.labUpdateResp = defaultUpdateResp()
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+
+	err := newClient(srv.URL).Commit(context.Background(), sampleTokens(), "gcp-sandbox", time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 1, router.countCalls("/api/web/lab/play-update-user-task-status"))
+
+	body := router.bodyAt("/api/web/lab/play-update-user-task-status")
+	assert.Equal(t, "gcp-sandbox", body["task_slug"])
+	assert.InDelta(t, 1, body["sandbox_duration"], 0)
+}
+
 // -----------------------------------------------------------------------------
 // Destroy
 // -----------------------------------------------------------------------------
@@ -360,7 +442,7 @@ func TestClient_Destroy_HappyPath(t *testing.T) {
 	defer srv.Close()
 	c := newClient(srv.URL)
 
-	if err := c.Destroy(context.Background(), sampleTokens()); err != nil {
+	if err := c.Destroy(context.Background(), sampleTokens(), "aws-sandbox"); err != nil {
 		t.Fatalf("Destroy: %v", err)
 	}
 	if router.countCalls("/api/web/play-sandbox/play-end-sandbox") != 1 {
@@ -380,7 +462,7 @@ func TestClient_Destroy_SandboxNotFound(t *testing.T) {
 	defer srv.Close()
 	c := newClient(srv.URL)
 
-	err := c.Destroy(context.Background(), sampleTokens())
+	err := c.Destroy(context.Background(), sampleTokens(), "aws-sandbox")
 	if !errors.Is(err, sandbox.ErrNoActiveSandbox) {
 		t.Errorf("error: got %v, want ErrNoActiveSandbox", err)
 	}
@@ -393,13 +475,28 @@ func TestClient_Destroy_GenericFailure(t *testing.T) {
 	defer srv.Close()
 	c := newClient(srv.URL)
 
-	err := c.Destroy(context.Background(), sampleTokens())
+	err := c.Destroy(context.Background(), sampleTokens(), "aws-sandbox")
 	if err == nil {
 		t.Fatal("expected error")
 	}
 	if errors.Is(err, sandbox.ErrNoActiveSandbox) {
 		t.Error("generic failure should not match ErrNoActiveSandbox")
 	}
+}
+
+func TestClient_Destroy_GCPConsoleSandbox(t *testing.T) {
+	router := newPlayRouter()
+	router.labEndResp = defaultEndResp()
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+
+	err := newClient(srv.URL).Destroy(context.Background(), sampleTokens(), "gcp-sandbox")
+	require.NoError(t, err)
+	assert.Equal(t, 1, router.countCalls("/api/web/lab/play-end-lab"))
+
+	body := router.bodyAt("/api/web/lab/play-end-lab")
+	assert.Equal(t, "gcp-sandbox", body["task_slug"])
+	assert.InDelta(t, 1, body["error_id"], 0)
 }
 
 // -----------------------------------------------------------------------------

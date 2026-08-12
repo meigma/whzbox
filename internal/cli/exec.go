@@ -17,6 +17,7 @@ import (
 // first positional arg to `whzbox exec`. Mirrors create's ValidArgs.
 var validExecKinds = map[string]sandbox.Kind{ //nolint:gochecknoglobals // static registry
 	string(sandbox.KindAWS): sandbox.KindAWS,
+	string(sandbox.KindGCP): sandbox.KindGCP,
 }
 
 func newExecCommand(app **App) *cobra.Command {
@@ -35,7 +36,10 @@ func newExecCommand(app **App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			kind, ok := validExecKinds[args[0]]
 			if !ok {
-				return fmt.Errorf("%w: %q (want one of: aws)", sandbox.ErrUnknownKind, args[0])
+				return fmt.Errorf("%w: %q (want one of: aws, gcp)", sandbox.ErrUnknownKind, args[0])
+			}
+			if kind == sandbox.KindGCP {
+				return errors.New("exec gcp is unavailable: Whizlabs provides browser-console credentials only")
 			}
 
 			sb, found, err := (*app).Sandbox.Load(cmd.Context(), kind)
