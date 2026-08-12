@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/meigma/whzbox/internal/core/clock"
 	"github.com/meigma/whzbox/internal/core/sandbox"
 	"github.com/meigma/whzbox/internal/core/session"
@@ -29,6 +32,8 @@ type stubManager struct {
 
 	activeResult *sandbox.Sandbox
 	activeErr    error
+	mfaResult    string
+	mfaErr       error
 }
 
 func (s *stubManager) Create(
@@ -53,6 +58,10 @@ func (s *stubManager) Destroy(_ context.Context, _ session.Tokens, _ string) err
 
 func (s *stubManager) Active(_ context.Context, _ session.Tokens) (*sandbox.Sandbox, error) {
 	return s.activeResult, s.activeErr
+}
+
+func (s *stubManager) GenerateMFA(_ context.Context, _ session.Tokens) (string, error) {
+	return s.mfaResult, s.mfaErr
 }
 
 type stubVerifier struct {
@@ -286,13 +295,51 @@ func TestCreateCommand_GCPConsoleOnly(t *testing.T) {
 	}
 }
 
+func TestCreateCommand_AzureConsoleOnly(t *testing.T) {
+	mgr := &stubManager{createResult: &sandbox.Sandbox{
+		Console: sandbox.Console{
+			URL:      "https://portal.azure.com/",
+			Username: "student@example.com",
+			Password: "azure-password",
+		},
+		Identity:  sandbox.Identity{ResourceGroups: []string{"rg-compute", "rg-network"}},
+		StartedAt: time.Now(),
+		ExpiresAt: time.Now().Add(time.Hour),
+	}}
+	ver := &stubVerifier{
+		kind: sandbox.KindAzure,
+		slug: "azure-sandbox",
+		err:  sandbox.ErrVerificationUnsupported,
+	}
+	app := newSandboxTestApp(mgr, ver)
+
+	cmd := newCreateCommand(&app)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"azure"})
+	require.NoError(t, cmd.Execute())
+
+	for _, want := range []string{
+		"rg-compute",
+		"rg-network",
+		"Browser console only",
+		"whzbox mfa azure",
+		"student@example.com",
+		"azure-password",
+	} {
+		assert.Contains(t, out.String(), want)
+	}
+	assert.NotContains(t, out.String(), "AWS_ACCESS_KEY_ID")
+}
+
 func TestCreateCommand_InvalidProvider(t *testing.T) {
 	mgr := &stubManager{}
 	ver := &stubVerifier{}
 	app := newSandboxTestApp(mgr, ver)
 
 	cmd := newCreateCommand(&app)
-	cmd.SetArgs([]string{"azure"})
+	cmd.SetArgs([]string{"oracle"})
 	err := cmd.Execute()
 	if err == nil {
 		t.Fatal("expected error for invalid provider")

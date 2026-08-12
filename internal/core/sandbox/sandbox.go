@@ -14,6 +14,10 @@ const (
 	// KindGCP is the GCP sandbox provided by Whizlabs, surfaced via the
 	// "gcp-sandbox" slug with browser-console credentials.
 	KindGCP Kind = "gcp"
+
+	// KindAzure is the Azure sandbox provided by Whizlabs, surfaced via
+	// the "azure-sandbox" slug with browser-console credentials.
+	KindAzure Kind = "azure"
 )
 
 // Credentials are the secrets handed back by the sandbox broker that
@@ -26,10 +30,9 @@ type Credentials struct {
 	SecretKey string
 }
 
-// Identity is the "whoami" information verified from the sandbox
-// credentials after creation. It is populated by
-// Provider.VerifyCredentials and is what gets rendered to the user
-// as proof the sandbox is usable.
+// Identity contains provider-specific sandbox metadata. AWS populates it
+// through credential verification; console-only providers populate it from
+// the Whizlabs create response.
 type Identity struct {
 	Account     string
 	UserID      string
@@ -37,6 +40,8 @@ type Identity struct {
 	Region      string
 	ProjectID   string
 	ProjectName string
+	// ResourceGroups are the Azure resource groups assigned to the sandbox.
+	ResourceGroups []string
 }
 
 // Console is the browser-login information returned alongside

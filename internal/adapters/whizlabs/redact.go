@@ -23,6 +23,7 @@ var redactFields = []string{ //nolint:gochecknoglobals // static lookup table
 	fieldUserToken,
 	"accesskey",
 	"secretkey",
+	"otp",
 }
 
 // redactHeaders returns a copy of h with sensitive values replaced.

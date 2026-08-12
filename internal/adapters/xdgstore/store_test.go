@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/meigma/whzbox/internal/adapters/xdgstore"
 	"github.com/meigma/whzbox/internal/core/sandbox"
 	"github.com/meigma/whzbox/internal/core/session"
@@ -236,9 +239,7 @@ func TestStore_SandboxRoundTrip(t *testing.T) {
 	if got.Console != orig.Console {
 		t.Errorf("console mismatch: got %+v want %+v", got.Console, orig.Console)
 	}
-	if got.Identity != orig.Identity {
-		t.Errorf("identity mismatch: got %+v want %+v", got.Identity, orig.Identity)
-	}
+	assert.Equal(t, orig.Identity, got.Identity)
 	if got.Verified != orig.Verified {
 		t.Errorf("verified mismatch: got %v want %v", got.Verified, orig.Verified)
 	}
@@ -278,6 +279,29 @@ func TestStore_GCPConsoleSandboxRoundTrip(t *testing.T) {
 	if got.Console != orig.Console {
 		t.Errorf("console mismatch: got %+v want %+v", got.Console, orig.Console)
 	}
+}
+
+func TestStore_AzureConsoleSandboxRoundTrip(t *testing.T) {
+	s := tempStore(t)
+	orig := &sandbox.Sandbox{
+		Kind: sandbox.KindAzure,
+		Slug: "azure-sandbox",
+		Console: sandbox.Console{
+			URL:      "https://portal.azure.com/",
+			Username: "student@example.com",
+			Password: "secret",
+		},
+		Identity:  sandbox.Identity{ResourceGroups: []string{"rg-compute", "rg-network"}},
+		StartedAt: time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+		ExpiresAt: time.Date(2026, 4, 11, 15, 0, 0, 0, time.UTC),
+	}
+
+	require.NoError(t, s.SaveSandbox(context.Background(), orig))
+	got, found, err := s.LoadSandbox(context.Background(), sandbox.KindAzure)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, orig.Identity.ResourceGroups, got.Identity.ResourceGroups)
+	assert.Equal(t, orig.Console, got.Console)
 }
 
 func TestStore_LoadSandboxMissing(t *testing.T) {

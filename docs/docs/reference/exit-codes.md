@@ -46,6 +46,7 @@ The shell prints:
 | invalid credentials | `2` |
 | session expired and not recoverable | `2` |
 | sandbox provider or verification failure | `3` |
+| Azure MFA generation failure | `3` |
 | no active sandbox upstream for destroy | `3` |
 | user aborts prompt | `4` |
 | prompt needed but no TTY is attached | `5` |

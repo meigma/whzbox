@@ -2,8 +2,8 @@
 
 // Run with: go test -tags integration -timeout 5m ./internal/adapters/whizlabs/...
 //
-// This test exercises the full sandbox lifecycle against the real
-// Whizlabs + AWS APIs. It is intentionally excluded from the default
+// These tests exercise sandbox lifecycles against the real Whizlabs and
+// cloud-provider APIs. They are intentionally excluded from the default
 // `go test` run and depends on the repo-local .env file.
 
 package whizlabs_test
@@ -83,6 +83,70 @@ func TestIntegration_SandboxLifecycle(t *testing.T) {
 	} else if !isNoActiveSandbox(err) {
 		t.Logf("second Destroy returned error (acceptable): %v", err)
 	}
+}
+
+func TestIntegration_AzureSandboxLifecycle(t *testing.T) {
+	root := locateRepoRoot(t)
+	env := readDotEnv(t, filepath.Join(root, ".env"))
+	email, password := env["USERNAME"], env["PASSWORD"]
+	if email == "" || password == "" {
+		t.Skip("no USERNAME/PASSWORD in .env; skipping integration test")
+	}
+
+	client := whizlabs.NewClient(config.WhizlabsConfig{
+		BaseURL: config.DefaultWhizlabsBaseURL,
+		PlayURL: config.DefaultWhizlabsPlayURL,
+	}, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	tokens, err := client.Login(ctx, email, password)
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	const duration = 3 * time.Hour
+	sb, err := client.Create(ctx, tokens, "azure-sandbox", duration)
+	if err != nil {
+		t.Fatalf("Create Azure: %v", err)
+	}
+	created := true
+	defer func() {
+		if created {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cleanupCancel()
+			if err := client.Destroy(cleanupCtx, tokens, "azure-sandbox"); err != nil {
+				t.Errorf("cleanup Azure: %v", err)
+			}
+		}
+	}()
+
+	if sb == nil || sb.Console.URL == "" || sb.Console.Username == "" || sb.Console.Password == "" {
+		t.Fatal("Create Azure returned incomplete console credentials")
+	}
+	if len(sb.Identity.ResourceGroups) == 0 {
+		t.Fatal("Create Azure returned no resource groups")
+	}
+	if sb.Credentials.AccessKey != "" || sb.Credentials.SecretKey != "" {
+		t.Fatal("Create Azure unexpectedly returned AWS-style credentials")
+	}
+
+	if err := client.Commit(ctx, tokens, "azure-sandbox", duration); err != nil {
+		t.Fatalf("Commit Azure: %v", err)
+	}
+	code, err := client.GenerateMFA(ctx, tokens)
+	if err != nil {
+		t.Fatalf("GenerateMFA: %v", err)
+	}
+	if code == "" {
+		t.Fatal("GenerateMFA returned an empty code")
+	}
+
+	if err := client.Destroy(ctx, tokens, "azure-sandbox"); err != nil {
+		t.Fatalf("Destroy Azure: %v", err)
+	}
+	created = false
+	t.Logf("Azure lifecycle ok: resource_groups=%d", len(sb.Identity.ResourceGroups))
 }
 
 func isNoActiveSandbox(err error) bool {

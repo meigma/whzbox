@@ -42,6 +42,7 @@ nav:
       - Overview: how-to/index.md
       - Create a sandbox with a specific duration: how-to/create-a-sandbox-with-a-specific-duration.md
       - Run AWS CLI commands with whzbox exec: how-to/run-aws-cli-commands-with-whzbox-exec.md
+      - Sign in to an Azure sandbox with MFA: how-to/sign-in-to-an-azure-sandbox-with-mfa.md
       - Use whzbox in non-interactive scripts: how-to/use-whzbox-in-non-interactive-scripts.md
       - Destroy a sandbox without prompts: how-to/destroy-a-sandbox-without-prompts.md
       - Relocate or inspect the state directory: how-to/relocate-or-inspect-the-state-directory.md
@@ -58,6 +59,7 @@ nav:
           - list: reference/commands/list.md
           - status: reference/commands/status.md
           - exec: reference/commands/exec.md
+          - mfa: reference/commands/mfa.md
           - version: reference/commands/version.md
           - completion: reference/commands/completion.md
       - Global flags and environment variables: reference/global-flags-and-environment-variables.md

@@ -34,4 +34,8 @@ var (
 	// ErrActiveSandbox is returned when a different unexpired provider
 	// is already cached. Whizlabs allows only one active sandbox per user.
 	ErrActiveSandbox = errors.New("another sandbox is already active")
+
+	// ErrMFAUnsupported is returned when MFA is requested for a provider
+	// that does not expose an on-demand console login code.
+	ErrMFAUnsupported = errors.New("sandbox MFA unsupported")
 )

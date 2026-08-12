@@ -80,6 +80,8 @@ Example:
 
 GCP entries use the same schema. Their `credentials` object contains empty AWS fields, and `identity` adds `project_id` and `project_name`.
 
+Azure entries also contain empty AWS credential fields. Their `identity` object adds a `resource_groups` array. MFA codes are never stored.
+
 ## Lifecycle rules
 
 ### Session entries
@@ -95,7 +97,8 @@ GCP entries use the same schema. Their `credentials` object contains empty AWS f
 - verification failure still saves the sandbox entry.
 - `destroy` clears all cached sandboxes after a successful destroy.
 - `list` and `exec` read the sandbox cache directly.
-- `exec` uses cached AWS credentials. GCP remains browser-console only.
+- `mfa azure` checks the cache, then contacts Whizlabs for a fresh code without saving it.
+- `exec` uses cached AWS credentials. Azure and GCP remain browser-console only.
 
 ## Invalid-state handling
 

@@ -10,9 +10,10 @@ func TestRedactBody_RedactsSensitiveFields(t *testing.T) {
 	in := []byte(`{
 		"email": "x@y.com",
 		"password": "secret",
-		"data": {
-			"access_token": "abc",
-			"refresh_token": "def",
+			"data": {
+				"access_token": "abc",
+				"refresh_token": "def",
+				"otp": "123456",
 			"user": {
 				"auth_token": "ghi",
 				"name": "Alice"
@@ -21,7 +22,7 @@ func TestRedactBody_RedactsSensitiveFields(t *testing.T) {
 	}`)
 	got := redactBody(in)
 
-	for _, leak := range []string{"secret", "abc", "def", "ghi"} {
+	for _, leak := range []string{"secret", "abc", "def", "ghi", "123456"} {
 		if strings.Contains(got, leak) {
 			t.Errorf("sensitive value %q leaked: %s", leak, got)
 		}
@@ -91,6 +92,7 @@ func TestIsSensitiveField(t *testing.T) {
 		"user_token":    true,
 		"accesskey":     true,
 		"secretkey":     true,
+		"otp":           true,
 		"email":         false,
 		"username":      false,
 	}

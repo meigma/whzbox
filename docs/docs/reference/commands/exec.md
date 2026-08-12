@@ -20,7 +20,7 @@ whzbox exec <provider>
 
 | Argument | Required | Values | Description |
 | --- | --- | --- | --- |
-| `provider` | Yes | `aws`, `gcp` | Sandbox provider kind. GCP is accepted only to return the console-only error. |
+| `provider` | Yes | `aws`, `azure`, `gcp` | Sandbox provider kind. Azure and GCP are accepted only to return the console-only error. |
 | `cmd args...` | No | Any child argv | Command to run. Omit it to launch a subshell. |
 
 ## Flags
@@ -35,7 +35,7 @@ whzbox exec <provider>
 - Does not refresh tokens.
 - Does not prompt for credentials.
 - Rejects unknown providers.
-- Rejects `gcp` with an actionable error because Whizlabs does not return a service account, access token, or other programmatic GCP credential.
+- Rejects `azure` and `gcp` with an actionable error because Whizlabs does not return a workload identity or other programmatic credential for them.
 - Rejects expired or missing cached sandboxes.
 - Appends provider-specific environment variables to the current process environment.
 - Propagates the child process exit code.
@@ -57,7 +57,7 @@ whzbox exec <provider>
 - child exit code when the child process exits non-zero
 - `1` for local execution errors, invalid shell usage, or missing cached sandbox
 
-`whzbox exec gcp` also exits `1` and explains that the sandbox is browser-console only.
+`whzbox exec azure` and `whzbox exec gcp` also exit `1` and explain that the sandbox is browser-console only.
 
 ## See also
 

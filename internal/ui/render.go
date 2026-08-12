@@ -53,6 +53,27 @@ func RenderSandbox(w io.Writer, sb *sandbox.Sandbox) {
 }
 
 func sandboxRows(sb *sandbox.Sandbox) []struct{ k, v string } {
+	if sb.Kind == sandbox.KindAzure {
+		rows := []struct{ k, v string }{
+			{"Access", "Browser console only"},
+			{"MFA", "Run: whzbox mfa azure"},
+		}
+		for i, group := range sb.Identity.ResourceGroups {
+			label := "Resource group"
+			if len(sb.Identity.ResourceGroups) > 1 {
+				label = fmt.Sprintf("Resource group %d", i+1)
+			}
+			rows = append(rows, struct{ k, v string }{label, group})
+		}
+		return append(rows,
+			struct{ k, v string }{"", ""},
+			struct{ k, v string }{"Expires", formatExpiry(sb.ExpiresAt)},
+			struct{ k, v string }{"", ""},
+			struct{ k, v string }{"Console", sb.Console.URL},
+			struct{ k, v string }{"Username", sb.Console.Username},
+			struct{ k, v string }{"Password", sb.Console.Password},
+		)
+	}
 	if sb.Kind == sandbox.KindGCP {
 		return []struct{ k, v string }{
 			{"Project ID", sb.Identity.ProjectID},
@@ -108,12 +129,13 @@ type ConsoleJSON struct {
 }
 
 type IdentityJSON struct {
-	Account     string `json:"account"`
-	UserID      string `json:"user_id"`
-	ARN         string `json:"arn"`
-	Region      string `json:"region"`
-	ProjectID   string `json:"project_id,omitempty"`
-	ProjectName string `json:"project_name,omitempty"`
+	Account        string   `json:"account"`
+	UserID         string   `json:"user_id"`
+	ARN            string   `json:"arn"`
+	Region         string   `json:"region"`
+	ProjectID      string   `json:"project_id,omitempty"`
+	ProjectName    string   `json:"project_name,omitempty"`
+	ResourceGroups []string `json:"resource_groups,omitempty"`
 }
 
 // sandboxToJSON converts the domain Sandbox into its JSON DTO.
@@ -131,12 +153,13 @@ func sandboxToJSON(sb *sandbox.Sandbox) SandboxJSON {
 			Password: sb.Console.Password,
 		},
 		Identity: IdentityJSON{
-			Account:     sb.Identity.Account,
-			UserID:      sb.Identity.UserID,
-			ARN:         sb.Identity.ARN,
-			Region:      sb.Identity.Region,
-			ProjectID:   sb.Identity.ProjectID,
-			ProjectName: sb.Identity.ProjectName,
+			Account:        sb.Identity.Account,
+			UserID:         sb.Identity.UserID,
+			ARN:            sb.Identity.ARN,
+			Region:         sb.Identity.Region,
+			ProjectID:      sb.Identity.ProjectID,
+			ProjectName:    sb.Identity.ProjectName,
+			ResourceGroups: sb.Identity.ResourceGroups,
 		},
 		StartedAt: sb.StartedAt,
 		ExpiresAt: sb.ExpiresAt,
@@ -162,7 +185,7 @@ func RenderSandboxList(w io.Writer, sbs []*sandbox.Sandbox, now time.Time) {
 		fpf(w, "(no sandboxes cached)\n")
 		return
 	}
-	fpf(w, "%-6s  %-18s  %-7s  %s\n", "KIND", "ACCOUNT/PROJECT", "STATUS", "EXPIRES")
+	fpf(w, "%-6s  %-18s  %-7s  %s\n", "KIND", "IDENTIFIER", "STATUS", "EXPIRES")
 	for _, sb := range sbs {
 		if sb == nil {
 			continue
@@ -174,6 +197,9 @@ func RenderSandboxList(w io.Writer, sbs []*sandbox.Sandbox, now time.Time) {
 		identifier := sb.Identity.Account
 		if identifier == "" {
 			identifier = sb.Identity.ProjectID
+		}
+		if identifier == "" && len(sb.Identity.ResourceGroups) > 0 {
+			identifier = sb.Identity.ResourceGroups[0]
 		}
 		fpf(w, "%-6s  %-18s  %-7s  %s\n",
 			string(sb.Kind),

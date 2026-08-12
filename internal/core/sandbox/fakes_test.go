@@ -34,11 +34,14 @@ type fakeManager struct {
 
 	activeResult *sandbox.Sandbox
 	activeErr    error
+	mfaResult    string
+	mfaErr       error
 
 	createCalls  int
 	commitCalls  int
 	destroyCalls int
 	activeCalls  int
+	mfaCalls     int
 
 	lastCreateSlug     string
 	lastCreateDuration time.Duration
@@ -75,6 +78,11 @@ func (f *fakeManager) Destroy(_ context.Context, _ session.Tokens, slug string) 
 func (f *fakeManager) Active(_ context.Context, _ session.Tokens) (*sandbox.Sandbox, error) {
 	f.activeCalls++
 	return f.activeResult, f.activeErr
+}
+
+func (f *fakeManager) GenerateMFA(_ context.Context, _ session.Tokens) (string, error) {
+	f.mfaCalls++
+	return f.mfaResult, f.mfaErr
 }
 
 // fakeProvider is an in-memory sandbox.Provider for unit tests.
