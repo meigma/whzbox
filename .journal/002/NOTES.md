@@ -50,3 +50,8 @@ Verification:
 - `go test -v -tags integration -run '^TestIntegration_AzureSandboxLifecycle$' -timeout 12m ./internal/adapters/whizlabs/...` passed in 85.43 seconds against the live service.
 - The acceptance requested the documented three-hour maximum, observed three resource groups, generated MFA, and destroyed the sandbox immediately.
 - `git diff --check` passed before the implementation commit, and the temporary credential symlink and generated Python cache were removed.
+
+## 2026-08-12 16:53 — Pull request opened
+Opened review-ready PR #40, `feat(azure): add console sandbox support`, from `feat/azure-sandbox` at exact head `64a2d9d` into `main`: https://github.com/meigma/whzbox/pull/40
+
+Initial hosted state: the PR is open and mergeable; CI, CodeQL, release dry run, and Kusari checks have started, while the Cloudflare Workers build has already passed. The PR remains blocked until required checks and review complete.
