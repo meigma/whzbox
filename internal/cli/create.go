@@ -22,7 +22,7 @@ func newCreateCommand(app **App) *cobra.Command {
 			"v1 supports only the 'aws' provider. Duration must be between 1h\n" +
 			"and 9h.",
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
-		ValidArgs: []string{"aws"},
+		ValidArgs: []string{string(sandbox.KindAWS)},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			kind := sandbox.Kind(args[0])
 

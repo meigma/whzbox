@@ -1,23 +1,2 @@
-# https://moonrepo.dev/docs/config/toolchain
-$schema: 'https://moonrepo.dev/schemas/toolchain.json'
-
-proto:
-  version: '0.55.4'
-
-go:
-  version: '1.26.2'
-  workspaces: false
-  bins:
-    - 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4'
-
-javascript:
-  packageManager: 'npm'
-  inferTasksFromScripts: false
-  dedupeOnLockfileChange: false
-  syncPackageManagerField: false
-
-node:
-  version: '25.2.1'
-
-npm:
-  version: '11.12.1'
+# Tool versions are locked by mise. Moon executes the system binaries that mise
+# places on PATH, so no language toolchain is declared here.

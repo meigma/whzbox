@@ -16,5 +16,5 @@ func IsInteractive(f *os.File) bool {
 	if f == nil {
 		return false
 	}
-	return term.IsTerminal(int(f.Fd())) //nolint:gosec // file descriptors fit in int
+	return term.IsTerminal(int(f.Fd()))
 }

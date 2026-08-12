@@ -7,15 +7,20 @@ import (
 	"strings"
 )
 
+const (
+	fieldAccessToken = "access_token"
+	fieldUserToken   = "user_token"
+)
+
 // sensitive JSON field names, compared case-insensitively. Any field
 // whose key matches one of these is replaced with "<redacted>" before
 // the body is handed to a logger.
 var redactFields = []string{ //nolint:gochecknoglobals // static lookup table
 	"password",
-	"access_token",
+	fieldAccessToken,
 	"refresh_token",
 	"auth_token",
-	"user_token",
+	fieldUserToken,
 	"accesskey",
 	"secretkey",
 }

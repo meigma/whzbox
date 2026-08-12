@@ -188,7 +188,7 @@ func (c *Client) debugRequest(req *http.Request, body []byte) {
 	if !c.logger.Enabled(req.Context(), slog.LevelDebug) {
 		return
 	}
-	c.logger.Debug("whizlabs request",
+	c.logger.DebugContext(req.Context(), "whizlabs request",
 		"method", req.Method,
 		"url", req.URL.String(),
 		"headers", redactHeaders(req.Header),
@@ -202,7 +202,7 @@ func (c *Client) debugResponse(resp *http.Response, body []byte) {
 	if !c.logger.Enabled(resp.Request.Context(), slog.LevelDebug) {
 		return
 	}
-	c.logger.Debug("whizlabs response",
+	c.logger.DebugContext(resp.Request.Context(), "whizlabs response",
 		"status", resp.StatusCode,
 		"body", redactBody(body),
 	)

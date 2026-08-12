@@ -12,6 +12,13 @@ import (
 	"github.com/meigma/whzbox/internal/ui"
 )
 
+const (
+	levelDebug = "debug"
+	levelInfo  = "info"
+	levelWarn  = "warn"
+	levelError = "error"
+)
+
 // New returns a [slog.Logger] writing to [os.Stderr], styled via the shared
 // charm log handler and the UI theme.
 func New(cfg config.Config) *slog.Logger {
@@ -66,13 +73,13 @@ func resolveLevel(cfg config.Config) slog.Level {
 
 func parseLevel(s string) (slog.Level, bool) {
 	switch strings.ToLower(s) {
-	case "debug":
+	case levelDebug:
 		return slog.LevelDebug, true
-	case "info":
+	case levelInfo:
 		return slog.LevelInfo, true
-	case "warn", "warning":
+	case levelWarn, "warning":
 		return slog.LevelWarn, true
-	case "error":
+	case levelError:
 		return slog.LevelError, true
 	}
 	return 0, false

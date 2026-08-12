@@ -21,8 +21,8 @@ import (
 // play token on every sandbox operation.
 func (c *Client) exchangeForPlayToken(ctx context.Context, t session.Tokens) (string, error) {
 	body := map[string]any{
-		"user_token": t.AccessToken,
-		"pt":         1,
+		fieldUserToken: t.AccessToken,
+		"pt":           1,
 	}
 	type data struct {
 		AuthToken string `json:"auth_token"`
@@ -69,10 +69,10 @@ func (c *Client) Create(
 	}
 
 	req := map[string]any{
-		"duration":     strconv.Itoa(hours),
-		"access_token": playJWT,
-		"sandbox_slug": slug,
-		"pt":           1,
+		"duration":       strconv.Itoa(hours),
+		fieldAccessToken: playJWT,
+		"sandbox_slug":   slug,
+		"pt":             1,
 	}
 	var env envelope[playCreateData]
 	err = c.postJSON(
@@ -123,9 +123,9 @@ func (c *Client) Commit(ctx context.Context, tokens session.Tokens, slug string,
 	}
 
 	req := map[string]any{
-		"duration":     strconv.Itoa(hours),
-		"access_token": playJWT,
-		"sandbox_slug": slug,
+		"duration":       strconv.Itoa(hours),
+		fieldAccessToken: playJWT,
+		"sandbox_slug":   slug,
 	}
 	var env envelope[json.RawMessage]
 	err = c.postJSON(
@@ -156,9 +156,9 @@ func (c *Client) Destroy(ctx context.Context, tokens session.Tokens) error {
 	}
 
 	req := map[string]any{
-		"error_id":     "0",
-		"type":         "stop-sandbox",
-		"access_token": playJWT,
+		"error_id":       "0",
+		"type":           "stop-sandbox",
+		fieldAccessToken: playJWT,
 	}
 	var env envelope[json.RawMessage]
 	err = c.postJSON(
