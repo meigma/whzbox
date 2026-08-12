@@ -22,3 +22,9 @@ coverage.html
 .vscode/
 .idea/
 *.swp
+
+# Agent session protocol
+.agents/
+.claude/
+.journal/
+.wt/
