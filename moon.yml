@@ -3,45 +3,91 @@ $schema: 'https://moonrepo.dev/schemas/project.json'
 
 language: 'go'
 layer: 'application'
+stack: 'backend'
+
+project:
+  title: 'whzbox'
+  description: 'Provision and manage Whizlabs sandboxes from the command line.'
+  owner: 'meigma'
+  maintainers:
+    - 'meigma'
+
+toolchains:
+  default: 'system'
+
+fileGroups:
+  goSources:
+    - 'cmd/**/*.go'
+    - 'internal/**/*.go'
+    - 'go.mod'
+    - 'go.sum'
+    - 'mise.toml'
+    - 'mise.lock'
+  lintConfig:
+    - '.golangci.yml'
+    - 'mise.toml'
+    - 'mise.lock'
+  releaseConfig:
+    - '.goreleaser.yaml'
+    - 'release-please-config.json'
+    - '.release-please-manifest.json'
+    - '.github/workflows/*.yml'
 
 workspace:
   inheritedTasks:
     include: []
 
 tasks:
+  format:
+    command: 'golangci-lint fmt --config .golangci.yml --diff'
+    inputs:
+      - '@group(goSources)'
+      - '@group(lintConfig)'
+    options:
+      cache: false
+
   build:
     command: 'go build ./...'
     inputs:
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
+      - '@group(goSources)'
     options:
       cache: true
 
   test:
     command: 'go test ./... -race -shuffle on -count 1'
     inputs:
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
+      - '@group(goSources)'
     options:
-      cache: true
+      cache: false
 
   vet:
     command: 'go vet ./...'
     inputs:
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
+      - '@group(goSources)'
     options:
       cache: true
 
   lint:
-    command: 'golangci-lint run ./...'
+    command: 'golangci-lint run --config .golangci.yml ./... --show-stats=false'
     inputs:
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '.golangci.yml'
+      - '@group(goSources)'
+      - '@group(lintConfig)'
     options:
-      cache: true
+      cache: false
+
+  check:
+    deps:
+      - 'root:format'
+      - 'root:lint'
+      - 'root:build'
+      - 'root:test'
+      - 'root:vet'
+      - 'docs:build'
+      - 'docs:typecheck'
+    inputs:
+      - '@group(goSources)'
+      - '@group(lintConfig)'
+      - '@group(releaseConfig)'
+    options:
+      cache: false
+      runInCI: true

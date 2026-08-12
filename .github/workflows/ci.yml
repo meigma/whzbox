@@ -19,18 +19,21 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      GOTOOLCHAIN: local
+      MOON_TOOLCHAIN_FORCE_GLOBALS: 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Moon Toolchain
-        uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0.6.4
+      - name: Setup mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
         with:
-          auto-setup: true
-          cache-base: main
+          version: 2026.6.14
+          cache: true
 
       - name: Restore Go Caches
         id: go-cache-restore
@@ -40,7 +43,7 @@ jobs:
             ~/go
             ~/.cache/go-build
             ~/.cache/golangci-lint
-          key: ${{ runner.os }}-go-moon-${{ hashFiles('go.mod', 'go.sum', '.golangci.yml', '.moon/toolchains.yml') }}
+          key: ${{ runner.os }}-go-moon-${{ hashFiles('mise.lock', 'go.mod', 'go.sum', '.golangci.yml') }}
           restore-keys: |
             ${{ runner.os }}-go-moon-
 
@@ -49,7 +52,7 @@ jobs:
         uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-moon-${{ hashFiles('docs/package.json', 'docs/package-lock.json', '.moon/toolchains.yml') }}
+          key: ${{ runner.os }}-npm-moon-${{ hashFiles('mise.lock', 'docs/package.json', 'docs/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-npm-moon-
 

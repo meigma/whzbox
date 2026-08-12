@@ -1,0 +1,20 @@
+# mise owns the repository toolchain; Moon remains the task runner and CI gate.
+# Bump a tool here, regenerate mise.lock for all supported development platforms,
+# and commit both files together.
+
+[tools]
+go = "1.26.4"
+# Node includes the npm CLI used by the current Docusaurus docs project.
+node = "25.2.1"
+"aqua:golangci/golangci-lint" = "2.12.2"
+"aqua:moonrepo/moon" = "2.3.5"
+
+[env]
+GOTOOLCHAIN = "local"
+# Moon's toolchain layer is backed by Proto even for `system` tasks. Force it
+# to honor mise's PATH so a developer's global Proto shims cannot shadow pins.
+MOON_TOOLCHAIN_FORCE_GLOBALS = "true"
+
+[settings]
+lockfile = true
+locked = true

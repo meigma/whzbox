@@ -2,9 +2,16 @@
 $schema: 'https://moonrepo.dev/schemas/workspace.json'
 
 projects:
-  root: '.'
-  docs: 'docs'
+  globs: []
+  sources:
+    root: '.'
+    docs: 'docs'
+
+defaultProject: 'root'
 
 vcs:
-  client: 'git'
   defaultBranch: 'main'
+  provider: 'github'
+
+pipeline:
+  installDependencies: false

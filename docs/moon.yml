@@ -3,10 +3,26 @@ $schema: 'https://moonrepo.dev/schemas/project.json'
 
 language: 'typescript'
 layer: 'application'
+stack: 'frontend'
+
+toolchains:
+  default: 'system'
 
 tasks:
+  install:
+    command: 'npm ci'
+    inputs:
+      - 'package.json'
+      - 'package-lock.json'
+    outputs:
+      - 'node_modules/.package-lock.json'
+    options:
+      cache: false
+
   build:
     command: 'npm run build'
+    deps:
+      - 'docs:install'
     inputs:
       - 'index.md'
       - 'tutorials/**/*'
@@ -27,6 +43,8 @@ tasks:
 
   typecheck:
     command: 'npm run typecheck'
+    deps:
+      - 'docs:install'
     inputs:
       - 'src/**/*'
       - 'package.json'

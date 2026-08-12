@@ -16,7 +16,7 @@ import (
 // validExecKinds is the fixed set of provider kinds accepted as the
 // first positional arg to `whzbox exec`. Mirrors create's ValidArgs.
 var validExecKinds = map[string]sandbox.Kind{ //nolint:gochecknoglobals // static registry
-	"aws": sandbox.KindAWS,
+	string(sandbox.KindAWS): sandbox.KindAWS,
 }
 
 func newExecCommand(app **App) *cobra.Command {
