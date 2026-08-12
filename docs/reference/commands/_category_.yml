@@ -1,8 +1,0 @@
-label: Commands
-position: 1
-collapsed: true
-link:
-  type: generated-index
-  title: Command Reference
-  description: Descriptive reference pages for every public whzbox command.
-  slug: /reference/commands

@@ -1,56 +1,61 @@
-# https://moonrepo.dev/docs/config/project
-$schema: 'https://moonrepo.dev/schemas/project.json'
-
-language: 'typescript'
+language: 'python'
 layer: 'application'
 stack: 'frontend'
+tags:
+  - 'docs'
+  - 'mkdocs'
+  - 'uv'
+
+project:
+  title: 'whzbox docs'
+  description: 'MkDocs documentation site for whzbox.'
+  owner: 'meigma'
+  maintainers:
+    - 'meigma'
 
 toolchains:
   default: 'system'
 
+fileGroups:
+  configs:
+    - 'mkdocs.yml'
+    - 'pyproject.toml'
+    - 'uv.lock'
+    - '.python-version'
+  sources:
+    - 'docs/**/*'
+
 tasks:
   install:
-    command: 'npm ci'
+    command: 'uv sync --locked'
     inputs:
-      - 'package.json'
-      - 'package-lock.json'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.python-version'
     outputs:
-      - 'node_modules/.package-lock.json'
+      - '.venv/pyvenv.cfg'
     options:
       cache: false
 
   build:
-    command: 'npm run build'
+    command: 'uv run --locked mkdocs build --strict'
     deps:
       - 'docs:install'
+      # golangci-lint's formatter scans the workspace. Let it finish before
+      # MkDocs replaces build/ so repeated aggregate checks cannot race.
+      - 'root:format'
     inputs:
-      - 'index.md'
-      - 'tutorials/**/*'
-      - 'how-to/**/*'
-      - 'reference/**/*'
-      - 'explanation/**/*'
-      - 'src/**/*'
-      - 'static/**/*'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig.json'
-      - 'docusaurus.config.ts'
-      - 'sidebars.ts'
+      - '@group(configs)'
+      - '@group(sources)'
     outputs:
-      - 'build'
-    options:
-      cache: true
+      - 'build/**/*'
 
-  typecheck:
-    command: 'npm run typecheck'
+  serve:
+    command: 'uv run --locked mkdocs serve --dev-addr 127.0.0.1:8000'
     deps:
       - 'docs:install'
     inputs:
-      - 'src/**/*'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig.json'
-      - 'docusaurus.config.ts'
-      - 'sidebars.ts'
+      - '@group(configs)'
+      - '@group(sources)'
     options:
-      cache: true
+      cache: false

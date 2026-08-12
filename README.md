@@ -48,14 +48,15 @@ Run `whzbox <command> --help` for per-command flags.
 
 ## Documentation
 
-The root README stays intentionally short. Detailed documentation lives under [`docs/`](docs):
+The root README stays intentionally short. The rendered site is at
+[whzbox.meigma.dev](https://whzbox.meigma.dev), with source under [`docs/docs/`](docs/docs):
 
-- [Documentation overview](docs/index.md)
+- [Documentation overview](docs/docs/index.md)
 - [AI agent skill](SKILL.md)
-- [Tutorial: create, use, and destroy your first AWS sandbox](docs/tutorials/create-use-and-destroy-your-first-aws-sandbox.md)
-- [How-to guides](docs/how-to)
-- [Command reference](docs/reference)
-- [Explanation](docs/explanation)
+- [Tutorial: create, use, and destroy your first AWS sandbox](docs/docs/tutorials/create-use-and-destroy-your-first-aws-sandbox.md)
+- [How-to guides](docs/docs/how-to)
+- [Command reference](docs/docs/reference)
+- [Explanation](docs/docs/explanation)
 
 A repo-local [SKILL.md](SKILL.md) is available for AI agents that need a concise, task-oriented guide to using the CLI before drilling into the full docs.
 
@@ -69,28 +70,21 @@ Preview the docs site locally:
 
 ```sh
 cd docs
-npm ci
-npm run start
+mise exec -- uv sync --locked
+mise exec -- uv run --locked mkdocs serve
 ```
 
 ## Development
 
 Prerequisites:
 
-- Go 1.26.2 or later
-- Node 20 or later for the docs site
-- `golangci-lint` for local linting
+- [mise](https://mise.jdx.dev) for the repository's locked toolchain
 
 Common tasks:
 
 ```sh
-go build -o whzbox ./cmd/whzbox
-go test -race ./...
-golangci-lint run
-
-cd docs
-npm ci
-npm run build
+mise install
+mise exec -- moon run root:check
 ```
 
 Run the Whizlabs integration tests only when you have real credentials in a repo-local `.env`:

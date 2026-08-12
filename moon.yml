@@ -83,7 +83,6 @@ tasks:
       - 'root:test'
       - 'root:vet'
       - 'docs:build'
-      - 'docs:typecheck'
     inputs:
       - '@group(goSources)'
       - '@group(lintConfig)'
