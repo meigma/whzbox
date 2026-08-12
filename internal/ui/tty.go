@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"os"
 
 	"golang.org/x/term"
@@ -16,5 +17,12 @@ func IsInteractive(f *os.File) bool {
 	if f == nil {
 		return false
 	}
-	return term.IsTerminal(int(f.Fd()))
+	return isInteractiveFD(f.Fd())
+}
+
+func isInteractiveFD(fd uintptr) bool {
+	if fd > math.MaxInt {
+		return false
+	}
+	return term.IsTerminal(int(fd))
 }
