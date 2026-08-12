@@ -87,6 +87,13 @@ mise install
 mise exec -- moon run root:check
 ```
 
+Repository settings are declared in `.github/repository-settings.toml`. Preview
+supported GitHub changes before applying them:
+
+```sh
+mise exec -- uv run .github/scripts/configure_github_repo.py plan --repo meigma/whzbox
+```
+
 Run the Whizlabs integration tests only when you have real credentials in a repo-local `.env`:
 
 ```sh
