@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions: {}
 
@@ -13,7 +14,8 @@ concurrency:
 
 jobs:
   release-please:
-    runs-on: ubuntu-latest
+    name: Release Please
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       issues: write
@@ -21,7 +23,7 @@ jobs:
     steps:
       - name: Mint GitHub App Token
         id: app-token
-        uses: actions/create-github-app-token@7bd03711494f032dfa3be3558f7dc8787b0be333 # v3.1.0
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
@@ -31,7 +33,7 @@ jobs:
       # and publishes that draft only after the release checks succeed.
       - name: Run Release Please
         id: release
-        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json

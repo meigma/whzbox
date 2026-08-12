@@ -4,28 +4,88 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release
+        required: true
+        type: string
 
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
+permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  resolve-release:
+    name: Resolve Release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.release-tag.outputs.tag }}
+    steps:
+      - name: Resolve release tag
+        id: release-tag
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="$DISPATCH_TAG"
+          else
+            tag="$GITHUB_REF_NAME"
+          fi
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "Release tag must match vX.Y.Z or vX.Y.Z-prerelease: $tag" >&2
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release-tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 30); do
+            if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null | grep -qx true; then
+              exit 0
+            fi
+            echo "Draft release $RELEASE_TAG is not ready yet; retrying..."
+            sleep 10
+          done
+
+          echo "Draft release $RELEASE_TAG was not found or is not a draft." >&2
+          exit 1
+
   release:
-    runs-on: ubuntu-latest
+    name: Binary Release
+    needs: resolve-release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Check out requested tag
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.tag }}
+        run: git checkout --detach "$RELEASE_TAG"
+
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
           cache: true
@@ -38,32 +98,8 @@ jobs:
         with:
           cosign-release: v3.0.5
 
-      - name: Verify draft release handoff
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          release_json="$(gh release view "${GITHUB_REF_NAME}" --json tagName,isDraft,url)"
-          tag_name="$(jq -r '.tagName' <<<"${release_json}")"
-          is_draft="$(jq -r '.isDraft' <<<"${release_json}")"
-          release_url="$(jq -r '.url' <<<"${release_json}")"
-
-          printf 'draft release: %s\n' "${release_url}"
-
-          if [[ "${tag_name}" != "${GITHUB_REF_NAME}" ]]; then
-            echo "release tag mismatch: expected ${GITHUB_REF_NAME}, got ${tag_name}" >&2
-            exit 1
-          fi
-
-          if [[ "${is_draft}" != "true" ]]; then
-            echo "release ${GITHUB_REF_NAME} is not a draft release" >&2
-            exit 1
-          fi
-
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
         with:
           distribution: goreleaser
           version: v2.14.3
@@ -72,6 +108,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ needs.resolve-release.outputs.tag }}
 
       - name: Smoke test released binary version metadata
         shell: bash
@@ -80,7 +117,7 @@ jobs:
 
           host_os="$(go env GOHOSTOS)"
           host_arch="$(go env GOHOSTARCH)"
-          expected_version="${GITHUB_REF_NAME}"
+          expected_version="${{ needs.resolve-release.outputs.tag }}"
           bin="$(find dist -type f -name whzbox | grep "/whzbox_${host_os}_${host_arch}_" | head -n 1 || true)"
 
           if [[ -z "${bin}" ]]; then
@@ -104,15 +141,37 @@ jobs:
             [[ "${output}" != *"built unknown"* ]]
           done
 
-      - name: Attest released files listed in checksums.txt
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+      - name: Upload checksums for isolated attestation
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          subject-checksums: ./dist/checksums.txt
+          name: release-checksums
+          path: dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 1
 
+  attest-binaries:
+    needs: release
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/attest.yml
+    with:
+      checksums-artifact: release-checksums
+
+  publish-draft-release:
+    name: Publish Draft Release
+    needs:
+      - resolve-release
+      - release
+      - attest-binaries
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
       - name: Publish draft release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh release edit "${GITHUB_REF_NAME}" --draft=false
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.tag }}
+        run: gh release edit "$RELEASE_TAG" --draft=false
