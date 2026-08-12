@@ -1,0 +1,32 @@
+version = 1
+
+[provenance]
+signer_workflow = "meigma/whzbox/.github/workflows/attest.yml"
+
+[[packages]]
+name = "whzbox"
+description = "A small Go CLI for managing Whizlabs cloud sandboxes."
+tag_pattern = "v${version}"
+
+[[packages.assets]]
+os = "darwin"
+arch = "amd64"
+pattern = "whzbox_${version}_darwin_amd64.tar.gz"
+
+[[packages.assets]]
+os = "darwin"
+arch = "arm64"
+pattern = "whzbox_${version}_darwin_arm64.tar.gz"
+
+[[packages.assets]]
+os = "linux"
+arch = "amd64"
+pattern = "whzbox_${version}_linux_amd64.tar.gz"
+
+[[packages.assets]]
+os = "linux"
+arch = "arm64"
+pattern = "whzbox_${version}_linux_arm64.tar.gz"
+
+[[packages.binaries]]
+path = "whzbox"

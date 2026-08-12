@@ -16,6 +16,9 @@ brew install meigma/tap/whzbox
 scoop bucket add meigma https://github.com/meigma/scoop-bucket
 scoop install whzbox
 
+# ghd (macOS/Linux releases produced by the current pipeline)
+ghd install meigma/whzbox/whzbox
+
 # Go
 go install github.com/meigma/whzbox/cmd/whzbox@latest
 ```
