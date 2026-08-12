@@ -23,3 +23,6 @@ After explicit approval for console-only scope, implemented `create gcp`, provid
 
 ## 2026-08-12 16:07 — Draft PR opened
 Opened draft PR #39, `feat(gcp): add console sandbox lifecycle`, from exact head `0294085` into `main`: https://github.com/meigma/whzbox/pull/39. GitHub reports the PR mergeable; hosted checks started with the Cloudflare Workers build already successful and CI, CodeQL, release dry run, and Kusari Inspector still queued or running.
+
+## 2026-08-12 16:12 — PR merged; closeout paused at local fast-forward
+After user approval, all seven hosted checks passed and PR #39 was squash-merged at exact approved head `0294085`, producing `main` commit `e9722a6`. The required local `main` fast-forward then stopped because pre-existing local `.gitignore`, `AGENTS.md`, `CLAUDE.md`, and untracked `.session.md` would be overwritten. Read-only hash comparison showed `AGENTS.md`, `CLAUDE.md`, and `.session.md` exactly match `origin/main`; `.gitignore` differs because local ignores `/docs/.docusaurus/` while `origin/main` ignores `/docs/.venv/`. Per session-close safety rules, no local edits were stashed, reset, or overwritten; the feature worktree and remote branch remain until the developer resolves the main-checkout overlap. Session 001 remains in progress and has no `SUMMARY.md` yet.
