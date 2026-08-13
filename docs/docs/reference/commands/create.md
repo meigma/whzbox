@@ -40,7 +40,7 @@ whzbox create <provider> [flags]
 ## Output
 
 - AWS styled output includes identity, console credentials, API credentials, and expiry information.
-- Azure styled output includes resource groups, console credentials, MFA instructions, and expiry information.
+- Azure styled output includes resource groups, console credentials, expiry information, and instructions to select **Use a verification code** before running `whzbox mfa azure`.
 - GCP styled output includes project metadata, console credentials, and expiry information.
 - JSON output: a single sandbox object. See [JSON output schemas](../json-output-schemas.md).
 

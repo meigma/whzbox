@@ -160,6 +160,7 @@ func TestRenderSandbox_AzureConsoleOnly(t *testing.T) {
 		"Resource group 2",
 		"rg-network",
 		"Browser console only",
+		"Use a verification code",
 		"whzbox mfa azure",
 		"student@example.com",
 		"azure-password",

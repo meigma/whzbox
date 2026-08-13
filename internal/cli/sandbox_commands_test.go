@@ -324,6 +324,7 @@ func TestCreateCommand_AzureConsoleOnly(t *testing.T) {
 		"rg-compute",
 		"rg-network",
 		"Browser console only",
+		"Use a verification code",
 		"whzbox mfa azure",
 		"student@example.com",
 		"azure-password",

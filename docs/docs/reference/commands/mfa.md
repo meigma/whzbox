@@ -28,6 +28,8 @@ whzbox mfa azure
 - Does not save the code to the state file.
 - Rejects other providers.
 
+At the Microsoft MFA prompt, select **Use a verification code** before you enter the generated code. The default **Approve sign in request** prompt uses Authenticator number matching and does not accept this code.
+
 ## Output
 
 The command writes only the MFA code and a newline to stdout. The code is valid for about 30 seconds. The global `--json` flag does not change this output.

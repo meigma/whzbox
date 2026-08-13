@@ -62,7 +62,7 @@ func sandboxRows(sb *sandbox.Sandbox) []struct{ k, v string } {
 	if sb.Kind == sandbox.KindAzure {
 		rows := []struct{ k, v string }{
 			{"Access", "Browser console only"},
-			{"MFA", "Run: whzbox mfa azure"},
+			{"MFA", "Select \"Use a verification code\", then run: whzbox mfa azure"},
 		}
 		for i, group := range sb.Identity.ResourceGroups {
 			label := "Resource group"

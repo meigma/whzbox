@@ -81,6 +81,7 @@ whzbox destroy --yes
 
 - `whzbox mfa azure`
   - Requires an unexpired cached Azure sandbox and a valid Whizlabs session.
+  - At the Microsoft MFA prompt, select **Use a verification code** before entering the generated code.
   - Prints a fresh 30-second console MFA code to stdout.
   - Never caches the code.
 

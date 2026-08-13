@@ -51,8 +51,10 @@ For an Azure console sandbox:
 
 ```sh
 whzbox create azure
+# Open the displayed console URL and sign in with the username and password.
+# At the MFA prompt, select "Use a verification code".
 whzbox mfa azure
-# Open the displayed console URL and sign in with the username, password, and MFA code.
+# Enter the displayed MFA code.
 whzbox destroy --yes
 ```
 
