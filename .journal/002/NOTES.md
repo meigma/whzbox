@@ -70,3 +70,8 @@ Verification:
 - The repository-pinned golangci-lint 2.12.2 passes when invoked directly.
 - `moon run root:check --force` passes with the pinned linter forced to the front of `PATH`, including format, lint, build, vet, unit tests, repository checks, and docs build.
 - On exact PR head `a588446`, GitHub CI, CodeQL, binary release dry-run, and Kusari all pass. The external Cloudflare Workers preview was still in progress at the checkpoint and had not reported a failure.
+
+## 2026-08-12 17:16 — Close
+PR #40 was approved and squash-merged at exact reviewed head `a588446` as `8a10387`: https://github.com/meigma/whzbox/pull/40
+
+All GitHub and external checks passed before merge. The root `main` checkout was fast-forwarded to `8a10387`, and the `feat/azure-sandbox` worktree plus local and remote branches were removed. Session 002 closes with Azure console lifecycle, resource-group metadata, on-demand MFA, tests, documentation, and live one-hour and three-hour acceptance complete. Programmatic Azure execution remains intentionally unsupported pending a future workload-identity contract.
