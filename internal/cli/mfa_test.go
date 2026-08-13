@@ -53,6 +53,18 @@ func TestMFACommand_PrintsFreshAzureCode(t *testing.T) {
 	assert.Equal(t, "123456\n", out.String())
 }
 
+func TestMFACommand_HelpExplainsAzureVerificationMethod(t *testing.T) {
+	app := &App{}
+	cmd := newMFACommand(&app)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--help"})
+
+	require.NoError(t, cmd.Execute())
+	assert.Contains(t, out.String(), "Use a verification code")
+}
+
 func TestMFACommand_RejectsUnsupportedProvider(t *testing.T) {
 	app := &App{}
 	cmd := newMFACommand(&app)

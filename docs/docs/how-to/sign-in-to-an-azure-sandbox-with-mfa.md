@@ -21,19 +21,19 @@ whzbox create azure
 
 Keep the console URL, username, and password from the output.
 
-### 2. Generate an MFA code
+### 2. Select verification-code authentication
 
-Run this immediately before signing in:
+Open the console URL from `create azure` and enter the displayed username and password. At the **Approve sign in request** prompt, select **Use a verification code**.
+
+### 3. Generate and enter an MFA code
+
+Run this after the verification-code field appears:
 
 ```bash
 whzbox mfa azure
 ```
 
-The code expires after about 30 seconds. Run the command again if it expires.
-
-### 3. Sign in to Azure
-
-Open the console URL from `create azure`. Enter the displayed username and password, then enter the MFA code.
+Enter the displayed code and select **Verify**. The code expires after about 30 seconds. Run the command again if it expires.
 
 ### 4. Destroy the sandbox when finished
 
@@ -58,6 +58,10 @@ Generate another code. MFA codes are not cached:
 ```bash
 whzbox mfa azure
 ```
+
+### Problem: Microsoft asks you to approve the sign-in request
+
+The approval prompt is for Authenticator number matching, not the code from `whzbox`. Select **Use a verification code**. If that option is not visible, select **Sign in another way**, then select **Use a verification code**.
 
 ## Related
 
