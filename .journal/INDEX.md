@@ -4,3 +4,4 @@
 |-----|------------|-------|--------|---------|
 | 001 | 2026-08-12 | Add GCP console sandbox support | complete | Added and live-validated console-only GCP lifecycle support in merged PR #39. |
 | 002 | 2026-08-12 | Add Azure console sandbox support | complete | Added and live-validated console-only Azure lifecycle and MFA support in merged PR #40. |
+| 003 | 2026-08-12 | Start new work session | in-progress | Primed a new session and is awaiting the user's work request. |
