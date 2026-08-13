@@ -62,3 +62,11 @@ PR #40 failed only the GitHub Actions `ci` check at exact head `64a2d9d`; releas
 Root cause: golangci-lint 2.12.2 reports four `goconst` findings in `internal/ui/render.go` after Azure introduced a third occurrence of the labels `Expires`, `Console`, `Username`, and `Password`. The earlier local gate used the globally resolved golangci-lint 2.11.4 because the checkout's mise config was untrusted, despite the repository pin being 2.12.2. Running the installed pinned 2.12.2 binary directly reproduced all four findings.
 
 Proposed fix: define the four repeated renderer labels as local package constants, rerun pinned golangci-lint 2.12.2 and the full repository gate, then commit and push the narrow correction after user approval.
+
+## 2026-08-12 17:10 — CI lint failure fixed
+Applied the approved one-file correction in `internal/ui/render.go`, reusing package constants for the four renderer labels without changing output. Checkpointed and pushed `a588446 fix(ui): reuse sandbox renderer labels` to PR #40.
+
+Verification:
+- The repository-pinned golangci-lint 2.12.2 passes when invoked directly.
+- `moon run root:check --force` passes with the pinned linter forced to the front of `PATH`, including format, lint, build, vet, unit tests, repository checks, and docs build.
+- On exact PR head `a588446`, GitHub CI, CodeQL, binary release dry-run, and Kusari all pass. The external Cloudflare Workers preview was still in progress at the checkpoint and had not reported a failure.
