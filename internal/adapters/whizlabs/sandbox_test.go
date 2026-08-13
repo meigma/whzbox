@@ -34,6 +34,7 @@ type playRouter struct {
 	labCreateResp []byte
 	labUpdateResp []byte
 	labEndResp    []byte
+	mfaResp       []byte
 
 	calls   []string
 	bodies  map[string][]byte
@@ -71,6 +72,8 @@ func (r *playRouter) handler() http.Handler {
 			_, _ = w.Write(r.labUpdateResp)
 		case "/api/web/lab/play-end-lab":
 			_, _ = w.Write(r.labEndResp)
+		case "/api/web/lab/play-az-generate-mfa":
+			_, _ = w.Write(r.mfaResp)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -131,6 +134,21 @@ func defaultGCPCreateResp() []byte {
 			"end_time": "2026-04-11 13:00:00"
 		}
 	}`)
+}
+
+func defaultAzureCreateResp() []byte {
+	return []byte(`{
+			"status": true,
+			"message": "ok",
+			"data": {
+				"login_link": "https://portal.azure.com/",
+				"username": "student@example.com",
+				"password": "azure-password",
+				"resource_group": ["rg-compute", "rg-network", "rg-storage"],
+				"start_time": "2026-04-11 12:00:00",
+				"end_time": "2026-04-11 15:00:00"
+			}
+		}`)
 }
 
 func newClient(baseURL string) *whizlabs.Client {
@@ -260,6 +278,41 @@ func TestClient_Create_GCPRejectsUnsupportedDurationBeforeNetwork(t *testing.T) 
 
 			_, err := newClient(srv.URL).Create(context.Background(), sampleTokens(), "gcp-sandbox", duration)
 			require.ErrorContains(t, err, "GCP sandbox duration must be 1h")
+			assert.Empty(t, router.calls)
+		})
+	}
+}
+
+func TestClient_Create_AzureConsoleSandbox(t *testing.T) {
+	router := newPlayRouter()
+	router.labCreateResp = defaultAzureCreateResp()
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+
+	sb, err := newClient(srv.URL).Create(context.Background(), sampleTokens(), "azure-sandbox", 3*time.Hour)
+	require.NoError(t, err)
+	require.NotNil(t, sb)
+
+	assert.Equal(t, "azure-sandbox", sb.Slug)
+	assert.Equal(t, []string{"rg-compute", "rg-network", "rg-storage"}, sb.Identity.ResourceGroups)
+	assert.Equal(t, "student@example.com", sb.Console.Username)
+	assert.Empty(t, sb.Credentials.AccessKey)
+	assert.Equal(t, 1, router.countCalls("/api/web/lab/play-create-lab"))
+
+	body := router.bodyAt("/api/web/lab/play-create-lab")
+	assert.Equal(t, "azure-sandbox", body["task_slug"])
+	assert.InDelta(t, 3, body["sandbox_duration"], 0)
+}
+
+func TestClient_Create_AzureRejectsUnsupportedDurationBeforeNetwork(t *testing.T) {
+	for _, duration := range []time.Duration{30 * time.Minute, 4 * time.Hour} {
+		t.Run(duration.String(), func(t *testing.T) {
+			router := newPlayRouter()
+			srv := httptest.NewServer(router.handler())
+			defer srv.Close()
+
+			_, err := newClient(srv.URL).Create(context.Background(), sampleTokens(), "azure-sandbox", duration)
+			require.ErrorContains(t, err, "azure sandbox duration must be between 1h and 3h")
 			assert.Empty(t, router.calls)
 		})
 	}
@@ -431,6 +484,21 @@ func TestClient_Commit_GCPConsoleSandbox(t *testing.T) {
 	assert.InDelta(t, 1, body["sandbox_duration"], 0)
 }
 
+func TestClient_Commit_AzureConsoleSandbox(t *testing.T) {
+	router := newPlayRouter()
+	router.labUpdateResp = defaultUpdateResp()
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+
+	err := newClient(srv.URL).Commit(context.Background(), sampleTokens(), "azure-sandbox", 3*time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 1, router.countCalls("/api/web/lab/play-update-user-task-status"))
+
+	body := router.bodyAt("/api/web/lab/play-update-user-task-status")
+	assert.Equal(t, "azure-sandbox", body["task_slug"])
+	assert.InDelta(t, 3, body["sandbox_duration"], 0)
+}
+
 // -----------------------------------------------------------------------------
 // Destroy
 // -----------------------------------------------------------------------------
@@ -497,6 +565,48 @@ func TestClient_Destroy_GCPConsoleSandbox(t *testing.T) {
 	body := router.bodyAt("/api/web/lab/play-end-lab")
 	assert.Equal(t, "gcp-sandbox", body["task_slug"])
 	assert.InDelta(t, 1, body["error_id"], 0)
+}
+
+func TestClient_Destroy_AzureConsoleSandbox(t *testing.T) {
+	router := newPlayRouter()
+	router.labEndResp = defaultEndResp()
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+
+	err := newClient(srv.URL).Destroy(context.Background(), sampleTokens(), "azure-sandbox")
+	require.NoError(t, err)
+	assert.Equal(t, 1, router.countCalls("/api/web/lab/play-end-lab"))
+
+	body := router.bodyAt("/api/web/lab/play-end-lab")
+	assert.Equal(t, "azure-sandbox", body["task_slug"])
+	assert.InDelta(t, 1, body["error_id"], 0)
+}
+
+func TestClient_GenerateMFA(t *testing.T) {
+	router := newPlayRouter()
+	router.mfaResp = []byte(`{"status":true,"message":"ok","data":{"otp":"123456"}}`)
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+
+	code, err := newClient(srv.URL).GenerateMFA(context.Background(), sampleTokens())
+	require.NoError(t, err)
+	assert.Equal(t, "123456", code)
+	assert.Equal(t, 1, router.countCalls("/api/web/lab/play-az-generate-mfa"))
+	assert.Equal(
+		t,
+		"Bearer "+router.playToken,
+		router.headers["/api/web/lab/play-az-generate-mfa"].Get("Authorization"),
+	)
+}
+
+func TestClient_GenerateMFARejectsEmptyCode(t *testing.T) {
+	router := newPlayRouter()
+	router.mfaResp = []byte(`{"status":false,"message":"MFA unavailable","data":{}}`)
+	srv := httptest.NewServer(router.handler())
+	defer srv.Close()
+
+	_, err := newClient(srv.URL).GenerateMFA(context.Background(), sampleTokens())
+	require.ErrorContains(t, err, "MFA unavailable")
 }
 
 // -----------------------------------------------------------------------------

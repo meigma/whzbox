@@ -40,13 +40,18 @@ type Manager interface {
 	Active(ctx context.Context, tokens session.Tokens) (*Sandbox, error)
 }
 
+// MFAGenerator fetches the current short-lived MFA code for an Azure
+// console sandbox. Codes are generated on demand and must not be cached.
+type MFAGenerator interface {
+	GenerateMFA(ctx context.Context, tokens session.Tokens) (string, error)
+}
+
 // Provider knows the quirks of one sandbox kind: which Whizlabs slug
 // to use when asking the Manager to create one, and how to verify the
 // resulting credentials against the real cloud provider.
 //
-// Adding a new sandbox kind means implementing one Provider (under
-// internal/adapters/<kind>verify/) and registering it in the CLI's
-// App container.
+// Adding a new sandbox kind means implementing one Provider under
+// internal/adapters and registering it in the CLI's App container.
 type Provider interface {
 	Kind() Kind
 	Slug() string

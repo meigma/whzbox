@@ -1,8 +1,8 @@
 # whzbox
 
-`whzbox` is a Go CLI for Whizlabs cloud sandboxes. It creates, caches, lists, and destroys AWS and GCP sandboxes.
+`whzbox` is a Go CLI for Whizlabs cloud sandboxes. It creates, caches, lists, and destroys AWS, Azure, and GCP sandboxes.
 
-AWS includes programmatic credentials for `whzbox exec`. GCP provides browser-console credentials only.
+AWS includes programmatic credentials for `whzbox exec`. Azure and GCP provide browser-console credentials only. Azure console login also requires a short-lived MFA code from `whzbox mfa azure`.
 
 ## Install
 
@@ -47,10 +47,21 @@ whzbox create gcp
 whzbox destroy --yes
 ```
 
+For an Azure console sandbox:
+
+```sh
+whzbox create azure
+whzbox mfa azure
+# Open the displayed console URL and sign in with the username, password, and MFA code.
+whzbox destroy --yes
+```
+
 Common commands:
 
 - `whzbox create aws` creates an AWS sandbox with console and programmatic credentials.
+- `whzbox create azure` creates an Azure sandbox with console credentials and resource groups.
 - `whzbox create gcp` creates a GCP sandbox with console credentials and project metadata.
+- `whzbox mfa azure` prints a fresh Azure console MFA code without caching it.
 - `whzbox list` shows cached sandboxes from local state.
 - `whzbox exec aws -- <command>` runs a command with sandbox credentials injected.
 - `whzbox status` shows the cached session.
@@ -74,9 +85,9 @@ A repo-local [SKILL.md](SKILL.md) is available for AI agents that need a concise
 
 A few behaviors that are easy to miss are documented in detail there:
 
-- `create aws` and `create gcp` can reuse an unexpired cached sandbox.
+- `create aws`, `create azure`, and `create gcp` can reuse an unexpired cached sandbox.
 - Whizlabs permits one active sandbox, so destroy the current provider before creating another.
-- `exec` supports AWS only. `exec gcp` explains the console-only limitation.
+- `exec` supports AWS only. `exec azure` and `exec gcp` explain the console-only limitation.
 - `exec`, `list`, and `status` read local state; they do not talk to Whizlabs.
 - `--json` is implemented by `create` and `list`.
 

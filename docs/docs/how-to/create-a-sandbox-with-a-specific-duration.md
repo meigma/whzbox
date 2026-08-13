@@ -6,7 +6,7 @@ description: Request a specific sandbox lifetime with the create command and und
 
 # How to create a sandbox with a specific duration
 
-Use `--duration` with `whzbox create aws` to request a sandbox lifetime.
+Use `--duration` with `whzbox create aws` or `whzbox create azure` to request a sandbox lifetime.
 
 ## Prerequisites
 
@@ -41,11 +41,19 @@ whzbox create aws --duration 90m --json | jq -r '.expires_at'
 
 `90m` is rounded up before the upstream API call, so the requested lifetime becomes `2h`.
 
+Azure uses the same whole-hour rounding but has a smaller range:
+
+```bash
+whzbox create azure --duration 2h
+```
+
+Azure accepts `1h` through `3h`. GCP accepts only `1h`.
+
 ## Troubleshooting
 
 ### Problem: the command rejects the duration
 
-`whzbox` rejects values that round below `1h` or above `9h`.
+AWS rejects values that round below `1h` or above `9h`. Azure rejects values below `1h` or above `3h`. GCP rejects every value except `1h`.
 
 ### Problem: a new sandbox was not created
 

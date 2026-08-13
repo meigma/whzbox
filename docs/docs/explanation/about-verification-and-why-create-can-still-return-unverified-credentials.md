@@ -8,6 +8,8 @@ description: Understand the post-create AWS STS verification step, IAM propagati
 
 After `whzbox` provisions and commits a sandbox, it verifies the returned AWS credentials by calling `sts:GetCallerIdentity`.
 
+Azure and GCP return console credentials without a workload identity that `whzbox` can verify through an SDK. They are cached and marked unverified without treating creation as a failure.
+
 ## Why verification exists
 
 Provisioning success from Whizlabs is not enough. The CLI wants proof that the credentials are usable against the real cloud provider before it presents them as ready.

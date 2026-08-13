@@ -3,6 +3,7 @@ package sandbox_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -268,6 +269,39 @@ func TestService_Create_UnsupportedVerificationStillSucceeds(t *testing.T) {
 	}
 	if r.store.saveCalls != 1 {
 		t.Errorf("console-only sandbox should be cached: got %d saves", r.store.saveCalls)
+	}
+}
+
+func TestService_Create_AzureConsoleMetadataSurvivesUnsupportedVerification(t *testing.T) {
+	r := newRig(t)
+	r.provider.kind = sandbox.KindAzure
+	r.provider.slug = "azure-sandbox"
+	r.provider.verifyErr = sandbox.ErrVerificationUnsupported
+	r.manager.createResult = &sandbox.Sandbox{
+		Identity:  sandbox.Identity{ResourceGroups: []string{"rg-compute", "rg-network"}},
+		Console:   sandbox.Console{Username: "student@example.com", Password: "secret"},
+		ExpiresAt: r.clock.Now().Add(time.Hour),
+	}
+	r.svc = sandbox.NewService(
+		r.auth,
+		r.manager,
+		providerSet(r.provider),
+		r.store,
+		r.clock,
+		nil,
+	)
+
+	got, err := r.svc.Create(context.Background(), sandbox.KindAzure, time.Hour)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if len(got.Identity.ResourceGroups) != 2 ||
+		got.Identity.ResourceGroups[0] != "rg-compute" ||
+		got.Identity.ResourceGroups[1] != "rg-network" {
+		t.Errorf("ResourceGroups: got %v", got.Identity.ResourceGroups)
+	}
+	if got.Verified {
+		t.Error("console-only Azure sandbox should remain unverified")
 	}
 }
 
@@ -702,5 +736,101 @@ func TestService_Status_ManagerGenericError(t *testing.T) {
 	}
 	if !errors.Is(err, sandbox.ErrProvider) {
 		t.Errorf("error: got %v, want ErrProvider", err)
+	}
+}
+
+func TestService_GenerateMFA_ReturnsFreshCodeWithoutCaching(t *testing.T) {
+	r := newRig(t)
+	r.provider.kind = sandbox.KindAzure
+	r.provider.slug = "azure-sandbox"
+	r.store.loaded = sandboxSet(&sandbox.Sandbox{
+		Kind:      sandbox.KindAzure,
+		Slug:      "azure-sandbox",
+		ExpiresAt: r.clock.Now().Add(time.Hour),
+	})
+	r.manager.mfaResult = "123456"
+	r.svc = sandbox.NewService(
+		r.auth,
+		r.manager,
+		providerSet(r.provider),
+		r.store,
+		r.clock,
+		nil,
+	)
+
+	code, err := r.svc.GenerateMFA(context.Background(), sandbox.KindAzure)
+	if err != nil {
+		t.Fatalf("GenerateMFA: %v", err)
+	}
+	if code != "123456" {
+		t.Errorf("code: got %q, want 123456", code)
+	}
+	if r.auth.calls != 1 || r.manager.mfaCalls != 1 {
+		t.Errorf("calls: auth=%d mfa=%d, want 1 each", r.auth.calls, r.manager.mfaCalls)
+	}
+	if r.store.saveCalls != 0 {
+		t.Errorf("short-lived MFA codes must never be cached: saves=%d", r.store.saveCalls)
+	}
+}
+
+func TestService_GenerateMFA_RequiresActiveAzureSandboxBeforeAuth(t *testing.T) {
+	r := newRig(t)
+	r.provider.kind = sandbox.KindAzure
+	r.provider.slug = "azure-sandbox"
+	r.store.loaded = sandboxSet(&sandbox.Sandbox{
+		Kind:      sandbox.KindAzure,
+		ExpiresAt: r.clock.Now(),
+	})
+	r.svc = sandbox.NewService(
+		r.auth,
+		r.manager,
+		providerSet(r.provider),
+		r.store,
+		r.clock,
+		nil,
+	)
+
+	_, err := r.svc.GenerateMFA(context.Background(), sandbox.KindAzure)
+	if err == nil || !strings.Contains(err.Error(), "no active azure sandbox") {
+		t.Fatalf("error: got %v, want no active Azure sandbox", err)
+	}
+	if r.auth.calls != 0 || r.manager.mfaCalls != 0 {
+		t.Errorf("expired cache should fail before auth: auth=%d mfa=%d", r.auth.calls, r.manager.mfaCalls)
+	}
+}
+
+func TestService_GenerateMFA_RejectsOtherProviders(t *testing.T) {
+	r := newRig(t)
+
+	_, err := r.svc.GenerateMFA(context.Background(), sandbox.KindAWS)
+	if !errors.Is(err, sandbox.ErrMFAUnsupported) {
+		t.Fatalf("error: got %v, want ErrMFAUnsupported", err)
+	}
+	if r.auth.calls != 0 {
+		t.Errorf("unsupported provider should fail before auth: calls=%d", r.auth.calls)
+	}
+}
+
+func TestService_GenerateMFA_WrapsUpstreamFailure(t *testing.T) {
+	r := newRig(t)
+	r.provider.kind = sandbox.KindAzure
+	r.provider.slug = "azure-sandbox"
+	r.store.loaded = sandboxSet(&sandbox.Sandbox{
+		Kind:      sandbox.KindAzure,
+		ExpiresAt: r.clock.Now().Add(time.Hour),
+	})
+	r.manager.mfaErr = errors.New("MFA unavailable")
+	r.svc = sandbox.NewService(
+		r.auth,
+		r.manager,
+		providerSet(r.provider),
+		r.store,
+		r.clock,
+		nil,
+	)
+
+	_, err := r.svc.GenerateMFA(context.Background(), sandbox.KindAzure)
+	if !errors.Is(err, sandbox.ErrProvider) || !strings.Contains(err.Error(), "MFA unavailable") {
+		t.Fatalf("error: got %v, want provider-wrapped MFA failure", err)
 	}
 }

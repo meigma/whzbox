@@ -64,7 +64,7 @@ func TestExecCommand_UnknownKind(t *testing.T) {
 	app := newListTestApp(t, now)
 
 	cmd := newExecCommand(&app)
-	cmd.SetArgs([]string{"azure"})
+	cmd.SetArgs([]string{"oracle"})
 	err := cmd.Execute()
 	if !errors.Is(err, sandbox.ErrUnknownKind) {
 		t.Errorf("want ErrUnknownKind, got %v", err)
@@ -77,6 +77,18 @@ func TestExecCommand_GCPExplainsConsoleOnlyLimit(t *testing.T) {
 
 	cmd := newExecCommand(&app)
 	cmd.SetArgs([]string{"gcp"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "browser-console credentials only") {
+		t.Errorf("want console-only error, got %v", err)
+	}
+}
+
+func TestExecCommand_AzureExplainsConsoleOnlyLimit(t *testing.T) {
+	now := time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC)
+	app := newListTestApp(t, now)
+
+	cmd := newExecCommand(&app)
+	cmd.SetArgs([]string{"azure"})
 	err := cmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), "browser-console credentials only") {
 		t.Errorf("want console-only error, got %v", err)

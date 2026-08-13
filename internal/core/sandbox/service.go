@@ -274,6 +274,39 @@ func (s *Service) EnvFor(sb *Sandbox) []string {
 	return prov.Env(sb)
 }
 
+// GenerateMFA returns the current short-lived console MFA code for an
+// unexpired cached Azure sandbox. The code is never written to the store.
+func (s *Service) GenerateMFA(ctx context.Context, kind Kind) (string, error) {
+	if kind != KindAzure {
+		return "", fmt.Errorf("%w: %q", ErrMFAUnsupported, kind)
+	}
+	if _, ok := s.providers[kind]; !ok {
+		return "", fmt.Errorf("%w: %q", ErrUnknownKind, kind)
+	}
+
+	cached, found, err := s.store.Load(ctx, kind)
+	if err != nil {
+		return "", err
+	}
+	if !found || cached == nil || !cached.ExpiresAt.After(s.clock.Now()) {
+		return "", fmt.Errorf("no active %s sandbox — run: whzbox create %s", kind, kind)
+	}
+
+	generator, ok := s.manager.(MFAGenerator)
+	if !ok {
+		return "", fmt.Errorf("%w: %q", ErrMFAUnsupported, kind)
+	}
+	tokens, err := s.session.EnsureValid(ctx)
+	if err != nil {
+		return "", err
+	}
+	code, err := generator.GenerateMFA(ctx, tokens)
+	if err != nil {
+		return "", fmt.Errorf("%w: generate MFA: %w", ErrProvider, err)
+	}
+	return code, nil
+}
+
 // Status returns the user's currently active sandbox, or (nil, nil)
 // when there is nothing active.
 //

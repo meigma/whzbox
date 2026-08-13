@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/meigma/whzbox/internal/core/sandbox"
 	"github.com/meigma/whzbox/internal/core/session"
 	"github.com/meigma/whzbox/internal/ui"
@@ -132,6 +135,54 @@ func TestRenderSandboxJSON_GCPProjectIdentity(t *testing.T) {
 	if credentials["access_key"] != "" || credentials["secret_key"] != "" {
 		t.Errorf("GCP programmatic credentials should be empty: %v", credentials)
 	}
+}
+
+func TestRenderSandbox_AzureConsoleOnly(t *testing.T) {
+	sb := &sandbox.Sandbox{
+		Kind: sandbox.KindAzure,
+		Identity: sandbox.Identity{
+			ResourceGroups: []string{"rg-compute", "rg-network"},
+		},
+		Console: sandbox.Console{
+			URL:      "https://portal.azure.com/",
+			Username: "student@example.com",
+			Password: "azure-password",
+		},
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+
+	var buf bytes.Buffer
+	ui.RenderSandbox(&buf, sb)
+	out := buf.String()
+	for _, want := range []string{
+		"Resource group 1",
+		"rg-compute",
+		"Resource group 2",
+		"rg-network",
+		"Browser console only",
+		"whzbox mfa azure",
+		"student@example.com",
+		"azure-password",
+	} {
+		assert.Contains(t, out, want)
+	}
+	assert.NotContains(t, out, "AWS_ACCESS_KEY_ID")
+}
+
+func TestRenderSandboxJSON_AzureResourceGroups(t *testing.T) {
+	sb := &sandbox.Sandbox{
+		Kind:     sandbox.KindAzure,
+		Slug:     "azure-sandbox",
+		Identity: sandbox.Identity{ResourceGroups: []string{"rg-compute", "rg-network"}},
+	}
+
+	var buf bytes.Buffer
+	require.NoError(t, ui.RenderSandboxJSON(&buf, sb))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &got))
+	identity := got["identity"].(map[string]any)
+	assert.Equal(t, []any{"rg-compute", "rg-network"}, identity["resource_groups"])
 }
 
 func TestRenderStatus_NotLoggedIn(t *testing.T) {

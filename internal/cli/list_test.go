@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/meigma/whzbox/internal/config"
 	"github.com/meigma/whzbox/internal/core/clock"
 	"github.com/meigma/whzbox/internal/core/sandbox"
@@ -124,9 +127,27 @@ func TestListCommand_GCPUsesProjectID(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if !strings.Contains(out.String(), "ACCOUNT/PROJECT") || !strings.Contains(out.String(), "project-12345") {
+	if !strings.Contains(out.String(), "IDENTIFIER") || !strings.Contains(out.String(), "project-12345") {
 		t.Errorf("GCP list row missing project identity:\n%s", out.String())
 	}
+}
+
+func TestListCommand_AzureUsesFirstResourceGroup(t *testing.T) {
+	now := time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC)
+	azure := &sandbox.Sandbox{
+		Kind:      sandbox.KindAzure,
+		Slug:      "azure-sandbox",
+		Identity:  sandbox.Identity{ResourceGroups: []string{"rg-compute", "rg-network"}},
+		ExpiresAt: now.Add(time.Hour),
+	}
+	app := newListTestApp(t, now, azure)
+
+	cmd := newListCommand(&app)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	require.NoError(t, cmd.Execute())
+	assert.Contains(t, out.String(), "rg-compute")
 }
 
 func TestListCommand_JSON(t *testing.T) {

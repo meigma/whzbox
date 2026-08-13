@@ -13,6 +13,7 @@ description: Reference for the JSON emitted by whzbox create and whzbox list.
 | Command | Top-level JSON type |
 | --- | --- |
 | `whzbox create aws --json` | object |
+| `whzbox create azure --json` | object |
 | `whzbox create gcp --json` | object |
 | `whzbox list --json` | array of objects |
 
@@ -20,11 +21,11 @@ description: Reference for the JSON emitted by whzbox create and whzbox list.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `kind` | string | Sandbox kind: `aws` or `gcp`. |
-| `slug` | string | Whizlabs provider slug: `aws-sandbox` or `gcp-sandbox`. |
-| `credentials` | object | Programmatic credentials. Both values are empty for GCP. |
+| `kind` | string | Sandbox kind: `aws`, `azure`, or `gcp`. |
+| `slug` | string | Whizlabs provider slug: `aws-sandbox`, `azure-sandbox`, or `gcp-sandbox`. |
+| `credentials` | object | Programmatic credentials. Both values are empty for Azure and GCP. |
 | `console` | object | Browser console login details. |
-| `identity` | object | Verified AWS identity or GCP project metadata. |
+| `identity` | object | Verified AWS identity, Azure resource groups, or GCP project metadata. |
 | `started_at` | string | Sandbox start time as an RFC 3339 timestamp. |
 | `expires_at` | string | Sandbox expiry time as an RFC 3339 timestamp. |
 
@@ -53,6 +54,7 @@ description: Reference for the JSON emitted by whzbox create and whzbox list.
 | `region` | string | AWS region |
 | `project_id` | string | GCP project ID; omitted for AWS |
 | `project_name` | string | GCP project name; omitted for AWS |
+| `resource_groups` | array of strings | Azure resource groups; omitted for AWS and GCP |
 
 ## Example: `create --json`
 
@@ -136,9 +138,40 @@ description: Reference for the JSON emitted by whzbox create and whzbox list.
 }
 ```
 
+## Example: Azure `create --json`
+
+```json
+{
+  "kind": "azure",
+  "slug": "azure-sandbox",
+  "credentials": {
+    "access_key": "",
+    "secret_key": ""
+  },
+  "console": {
+    "url": "https://portal.azure.com/",
+    "username": "student@example.com",
+    "password": "password"
+  },
+  "identity": {
+    "account": "",
+    "user_id": "",
+    "arn": "",
+    "region": "",
+    "resource_groups": [
+      "rg-compute",
+      "rg-network",
+      "rg-storage"
+    ]
+  },
+  "started_at": "2026-04-12T00:00:00Z",
+  "expires_at": "2026-04-12T03:00:00Z"
+}
+```
+
 ## Notes
 
-- `status`, `login`, `logout`, `destroy`, `exec`, `version`, and `completion` do not have JSON renderers.
+- `status`, `login`, `logout`, `destroy`, `exec`, `mfa`, `version`, and `completion` do not have JSON renderers.
 - `create --json` can still return a non-zero exit code if verification fails after creation.
 
 ## See also

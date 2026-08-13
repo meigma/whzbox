@@ -18,11 +18,11 @@ func newCreateCommand(app **App) *cobra.Command {
 		Use:   "create <provider>",
 		Short: "Create a new sandbox",
 		Long: "Create a new cloud sandbox through Whizlabs and render its\n" +
-			"credentials. GCP sandboxes expose browser-console credentials only.\n\n" +
-			"Supported providers are 'aws' and 'gcp'. AWS duration must be between\n" +
-			"1h and 9h; GCP currently supports 1h only.",
+			"credentials. Azure and GCP expose browser-console credentials only.\n\n" +
+			"Supported providers are 'aws', 'azure', and 'gcp'. AWS duration must be\n" +
+			"between 1h and 9h; Azure supports 1h to 3h; GCP supports 1h only.",
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
-		ValidArgs: []string{string(sandbox.KindAWS), string(sandbox.KindGCP)},
+		ValidArgs: []string{string(sandbox.KindAWS), string(sandbox.KindAzure), string(sandbox.KindGCP)},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			kind := sandbox.Kind(args[0])
 

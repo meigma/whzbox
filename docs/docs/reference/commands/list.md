@@ -33,7 +33,7 @@ This command takes no positional arguments.
 
 ## Output
 
-- Styled output: a table with `KIND`, `ACCOUNT/PROJECT`, `STATUS`, and `EXPIRES`
+- Styled output: a table with `KIND`, `IDENTIFIER`, `STATUS`, and `EXPIRES`. Azure uses its first resource group as the identifier.
 - JSON output: an array of sandbox objects. See [JSON output schemas](../json-output-schemas.md).
 
 ## Exit behavior

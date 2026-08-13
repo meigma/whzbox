@@ -14,6 +14,7 @@ Without a local cache, the credentials printed by `create` would be lost as soon
 
 - `list` can show what is still stored locally
 - `exec aws` can inject cached AWS credentials into a child process
+- `mfa azure` can confirm an unexpired Azure sandbox exists before requesting a login code
 - `create` can reuse a still-live sandbox instead of provisioning again
 
 ## Reuse rules
@@ -24,13 +25,13 @@ Without a local cache, the credentials printed by `create` would be lost as soon
 - cached but expired sandbox: provision a new one
 - cached and verified sandbox: reuse it immediately
 - cached and unverified AWS sandbox: try verification again before deciding
-- cached GCP sandbox: reuse its console credentials without verification
+- cached Azure or GCP sandbox: reuse its console credentials without verification
 
 Whizlabs permits one active sandbox per user. If a different unexpired provider is cached, `create` asks you to destroy it first.
 
 ## Why `logout` preserves cached sandboxes
 
-Session tokens and sandbox credentials serve different purposes. Clearing the Whizlabs session does not remove cached AWS or GCP credentials, so `logout` preserves cached sandboxes on disk.
+Session tokens and sandbox credentials serve different purposes. Clearing the Whizlabs session does not remove cached AWS, Azure, or GCP credentials, so `logout` preserves cached sandboxes on disk.
 
 That is why this sequence can still work while the sandbox remains valid:
 
@@ -43,6 +44,7 @@ That is why this sequence can still work while the sandbox remains valid:
 Commands do not all have the same dependency model:
 
 - `create` and `destroy` need a valid Whizlabs session
+- `mfa azure` needs a valid Whizlabs session and an unexpired Azure cache entry
 - `list` and `exec` need only the local sandbox cache
 - `status` needs only the local auth cache
 

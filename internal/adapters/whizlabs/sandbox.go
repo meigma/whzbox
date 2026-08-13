@@ -12,7 +12,10 @@ import (
 	"github.com/meigma/whzbox/internal/core/session"
 )
 
-const gcpSandboxSlug = "gcp-sandbox"
+const (
+	gcpSandboxSlug   = "gcp-sandbox"
+	azureSandboxSlug = "azure-sandbox"
+)
 
 // exchangeForPlayToken swaps a main-API JWT for a play.whizlabs.com-
 // scoped token. The play token is used for all sandbox operations and
@@ -53,15 +56,16 @@ type playCreateData struct {
 }
 
 // playCreateLabData is the successful-response body for play-create-lab.
-// GCP exposes only browser-console credentials and project metadata.
+// GCP and Azure expose browser-console credentials with provider metadata.
 type playCreateLabData struct {
-	LoginLink   string `json:"login_link"`
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	ProjectID   string `json:"project_id"`
-	ProjectName string `json:"project_name"`
-	StartTime   string `json:"start_time"`
-	EndTime     string `json:"end_time"`
+	LoginLink     string   `json:"login_link"`
+	Username      string   `json:"username"`
+	Password      string   `json:"password"`
+	ProjectID     string   `json:"project_id"`
+	ProjectName   string   `json:"project_name"`
+	ResourceGroup []string `json:"resource_group"`
+	StartTime     string   `json:"start_time"`
+	EndTime       string   `json:"end_time"`
 }
 
 // Create implements sandbox.Manager.
@@ -71,8 +75,8 @@ func (c *Client) Create(
 	slug string,
 	duration time.Duration,
 ) (*sandbox.Sandbox, error) {
-	if slug == gcpSandboxSlug && duration != time.Hour {
-		return nil, fmt.Errorf("GCP sandbox duration must be 1h, got %v", duration)
+	if err := validateLabDuration(slug, duration); err != nil {
+		return nil, err
 	}
 	hours, err := durationToHours(duration)
 	if err != nil {
@@ -84,8 +88,8 @@ func (c *Client) Create(
 	if err != nil {
 		return nil, err
 	}
-	if slug == gcpSandboxSlug {
-		return c.createGCPLab(ctx, playJWT, slug, hours, requestedDuration)
+	if isLabSandbox(slug) {
+		return c.createLabSandbox(ctx, playJWT, slug, hours, requestedDuration)
 	}
 
 	req := map[string]any{
@@ -126,7 +130,7 @@ func (c *Client) Create(
 	}, nil
 }
 
-func (c *Client) createGCPLab(
+func (c *Client) createLabSandbox(
 	ctx context.Context,
 	playJWT,
 	slug string,
@@ -145,8 +149,8 @@ func (c *Client) createGCPLab(
 	if err != nil {
 		return nil, err
 	}
-	if !env.Status || env.Data.Username == "" || env.Data.Password == "" || env.Data.ProjectID == "" {
-		return nil, fmt.Errorf("create GCP lab: %s", env.Message)
+	if !env.Status || env.Data.Username == "" || env.Data.Password == "" || !validLabIdentity(slug, env.Data) {
+		return nil, fmt.Errorf("create %s lab: %s", strings.TrimSuffix(slug, "-sandbox"), env.Message)
 	}
 	startedAt, expiresAt := c.resolveSandboxTimes(ctx, env.Data.StartTime, env.Data.EndTime, requestedDuration)
 
@@ -158,12 +162,39 @@ func (c *Client) createGCPLab(
 			Password: env.Data.Password,
 		},
 		Identity: sandbox.Identity{
-			ProjectID:   env.Data.ProjectID,
-			ProjectName: env.Data.ProjectName,
+			ProjectID:      env.Data.ProjectID,
+			ProjectName:    env.Data.ProjectName,
+			ResourceGroups: env.Data.ResourceGroup,
 		},
 		StartedAt: startedAt,
 		ExpiresAt: expiresAt,
 	}, nil
+}
+
+func isLabSandbox(slug string) bool {
+	return slug == gcpSandboxSlug || slug == azureSandboxSlug
+}
+
+func validateLabDuration(slug string, duration time.Duration) error {
+	switch {
+	case slug == gcpSandboxSlug && duration != time.Hour:
+		return fmt.Errorf("GCP sandbox duration must be 1h, got %v", duration)
+	case slug == azureSandboxSlug && (duration < time.Hour || duration > 3*time.Hour):
+		return fmt.Errorf("azure sandbox duration must be between 1h and 3h, got %v", duration)
+	default:
+		return nil
+	}
+}
+
+func validLabIdentity(slug string, data playCreateLabData) bool {
+	switch slug {
+	case gcpSandboxSlug:
+		return data.ProjectID != ""
+	case azureSandboxSlug:
+		return len(data.ResourceGroup) > 0
+	default:
+		return false
+	}
 }
 
 func labRequest(playJWT, slug string, hours int) map[string]any {
@@ -183,8 +214,8 @@ func labRequest(playJWT, slug string, hours int) map[string]any {
 // "Sandbox Not Found". This two-phase dance was discovered during
 // feasibility testing.
 func (c *Client) Commit(ctx context.Context, tokens session.Tokens, slug string, duration time.Duration) error {
-	if slug == gcpSandboxSlug && duration != time.Hour {
-		return fmt.Errorf("GCP sandbox duration must be 1h, got %v", duration)
+	if err := validateLabDuration(slug, duration); err != nil {
+		return err
 	}
 	hours, err := durationToHours(duration)
 	if err != nil {
@@ -195,7 +226,7 @@ func (c *Client) Commit(ctx context.Context, tokens session.Tokens, slug string,
 	if err != nil {
 		return err
 	}
-	if slug == gcpSandboxSlug {
+	if isLabSandbox(slug) {
 		var env envelope[json.RawMessage]
 		err = c.postJSON(
 			ctx,
@@ -208,7 +239,7 @@ func (c *Client) Commit(ctx context.Context, tokens session.Tokens, slug string,
 			return err
 		}
 		if !env.Status {
-			return fmt.Errorf("commit GCP lab: %s", env.Message)
+			return fmt.Errorf("commit %s lab: %s", strings.TrimSuffix(slug, "-sandbox"), env.Message)
 		}
 		return nil
 	}
@@ -245,8 +276,8 @@ func (c *Client) Destroy(ctx context.Context, tokens session.Tokens, slug string
 	if err != nil {
 		return err
 	}
-	if slug == gcpSandboxSlug {
-		return c.destroyGCPLab(ctx, playJWT, slug)
+	if isLabSandbox(slug) {
+		return c.destroyLabSandbox(ctx, playJWT, slug)
 	}
 
 	req := map[string]any{
@@ -274,7 +305,7 @@ func (c *Client) Destroy(ctx context.Context, tokens session.Tokens, slug string
 	return nil
 }
 
-func (c *Client) destroyGCPLab(ctx context.Context, playJWT, slug string) error {
+func (c *Client) destroyLabSandbox(ctx context.Context, playJWT, slug string) error {
 	req := map[string]any{
 		"task_slug":      slug,
 		"error_id":       1,
@@ -296,9 +327,36 @@ func (c *Client) destroyGCPLab(ctx context.Context, playJWT, slug string) error 
 		if strings.Contains(message, "not found") || strings.Contains(message, "no active") {
 			return fmt.Errorf("%w: %s", sandbox.ErrNoActiveSandbox, env.Message)
 		}
-		return fmt.Errorf("destroy GCP lab: %s", env.Message)
+		return fmt.Errorf("destroy %s lab: %s", strings.TrimSuffix(slug, "-sandbox"), env.Message)
 	}
 	return nil
+}
+
+// GenerateMFA fetches the current Azure console TOTP. The upstream code is
+// valid for about 30 seconds, so callers must not persist it.
+func (c *Client) GenerateMFA(ctx context.Context, tokens session.Tokens) (string, error) {
+	playJWT, err := c.exchangeForPlayToken(ctx, tokens)
+	if err != nil {
+		return "", err
+	}
+	type mfaData struct {
+		OTP string `json:"otp"`
+	}
+	var env envelope[mfaData]
+	err = c.postJSON(
+		ctx,
+		c.playURL+"/api/web/lab/play-az-generate-mfa",
+		nil,
+		&env,
+		withBearer(playJWT),
+	)
+	if err != nil {
+		return "", err
+	}
+	if !env.Status || env.Data.OTP == "" {
+		return "", fmt.Errorf("generate Azure MFA: %s", env.Message)
+	}
+	return env.Data.OTP, nil
 }
 
 // Active implements sandbox.Manager.
