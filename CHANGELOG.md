@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/meigma/whzbox/compare/v1.0.3...v1.1.0) (2026-08-13)
+
+
+### Features
+
+* **azure:** add console sandbox support ([#40](https://github.com/meigma/whzbox/issues/40)) ([8a10387](https://github.com/meigma/whzbox/commit/8a10387ed8f041db2aba73cda2bfa5277423df21))
+* **gcp:** add console sandbox lifecycle ([#39](https://github.com/meigma/whzbox/issues/39)) ([e9722a6](https://github.com/meigma/whzbox/commit/e9722a6eea55748990e6064a98fd885dfb34dec3))
+
+
+### Bug Fixes
+
+* **azure:** explain MFA verification method ([#41](https://github.com/meigma/whzbox/issues/41)) ([fdb86db](https://github.com/meigma/whzbox/commit/fdb86dbd25e78df477ccddfdd617b9090130020d))
+* **release:** force tag creation for draft releases ([9851e3b](https://github.com/meigma/whzbox/commit/9851e3b75d69c8e1a501e9916f3d0f845220ff50))
+
 ## [1.0.3](https://github.com/meigma/whzbox/compare/v1.0.2...v1.0.3) (2026-04-13)
 
 
