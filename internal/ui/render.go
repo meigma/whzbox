@@ -13,7 +13,13 @@ import (
 	"github.com/meigma/whzbox/internal/core/session"
 )
 
-const labelWidth = 22
+const (
+	labelWidth    = 22
+	labelExpires  = "Expires"
+	labelConsole  = "Console"
+	labelUsername = "Username"
+	labelPassword = "Password"
+)
 
 // fpf writes a formatted line to w, swallowing any write error — the
 // rendering layer cannot do anything useful with a failure to write
@@ -67,11 +73,11 @@ func sandboxRows(sb *sandbox.Sandbox) []struct{ k, v string } {
 		}
 		return append(rows,
 			struct{ k, v string }{"", ""},
-			struct{ k, v string }{"Expires", formatExpiry(sb.ExpiresAt)},
+			struct{ k, v string }{labelExpires, formatExpiry(sb.ExpiresAt)},
 			struct{ k, v string }{"", ""},
-			struct{ k, v string }{"Console", sb.Console.URL},
-			struct{ k, v string }{"Username", sb.Console.Username},
-			struct{ k, v string }{"Password", sb.Console.Password},
+			struct{ k, v string }{labelConsole, sb.Console.URL},
+			struct{ k, v string }{labelUsername, sb.Console.Username},
+			struct{ k, v string }{labelPassword, sb.Console.Password},
 		)
 	}
 	if sb.Kind == sandbox.KindGCP {
@@ -80,11 +86,11 @@ func sandboxRows(sb *sandbox.Sandbox) []struct{ k, v string } {
 			{"Project name", sb.Identity.ProjectName},
 			{"Access", "Browser console only"},
 			{"", ""},
-			{"Expires", formatExpiry(sb.ExpiresAt)},
+			{labelExpires, formatExpiry(sb.ExpiresAt)},
 			{"", ""},
-			{"Console", sb.Console.URL},
-			{"Username", sb.Console.Username},
-			{"Password", sb.Console.Password},
+			{labelConsole, sb.Console.URL},
+			{labelUsername, sb.Console.Username},
+			{labelPassword, sb.Console.Password},
 		}
 	}
 	return []struct{ k, v string }{
@@ -93,11 +99,11 @@ func sandboxRows(sb *sandbox.Sandbox) []struct{ k, v string } {
 		{"ARN", sb.Identity.ARN},
 		{"Region", sb.Identity.Region},
 		{"", ""},
-		{"Expires", formatExpiry(sb.ExpiresAt)},
+		{labelExpires, formatExpiry(sb.ExpiresAt)},
 		{"", ""},
-		{"Console", sb.Console.URL},
-		{"Username", sb.Console.Username},
-		{"Password", sb.Console.Password},
+		{labelConsole, sb.Console.URL},
+		{labelUsername, sb.Console.Username},
+		{labelPassword, sb.Console.Password},
 		{"", ""},
 		{"AWS_ACCESS_KEY_ID", sb.Credentials.AccessKey},
 		{"AWS_SECRET_ACCESS_KEY", sb.Credentials.SecretKey},
