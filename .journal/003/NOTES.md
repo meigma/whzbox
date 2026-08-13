@@ -22,3 +22,6 @@ Researched the failed Azure login against the current code, Microsoft Entra docu
 
 ## 2026-08-12 18:21 — Azure MFA guidance fix published
 Implemented the focused release fix on `feat/azure-mfa-guidance`: Azure styled create output and `mfa azure --help` now tell users to select **Use a verification code**, and the README, repo-local CLI skill, how-to, and command references describe the working sequence. Added tests for both guidance surfaces while preserving the exact code-only MFA stdout contract. Targeted UI/CLI tests passed, followed by the pinned 12-task `root:check` gate. Committed as `89ef711` and opened ready PR #41: https://github.com/meigma/whzbox/pull/41. Hosted checks started in progress.
+
+## 2026-08-12 18:50 — Azure MFA guidance fix merged
+All seven hosted checks passed on exact PR head `89ef711`, including CI, CodeQL, Kusari, Binary Release Dry Run, and the Workers documentation preview. Squash-merged PR #41 with the head SHA pinned. GitHub created `main` commit `fdb86db` (`fix(azure): explain MFA verification method (#41)`) and deleted the remote feature branch.
