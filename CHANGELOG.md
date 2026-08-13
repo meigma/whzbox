@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/meigma/whzbox/compare/v1.1.0...v1.1.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **release:** allow draft release discovery ([#42](https://github.com/meigma/whzbox/issues/42)) ([8a20583](https://github.com/meigma/whzbox/commit/8a20583ad1667ba3a5c67f5733eaac77abe26111))
+* **release:** target repository when publishing ([#44](https://github.com/meigma/whzbox/issues/44)) ([0eb46d7](https://github.com/meigma/whzbox/commit/0eb46d7ec9ede8cef62538857e2aa24d23f86ade))
+
 ## [1.1.0](https://github.com/meigma/whzbox/compare/v1.0.3...v1.1.0) (2026-08-13)
 
 
