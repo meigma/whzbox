@@ -25,3 +25,6 @@ Implemented the focused release fix on `feat/azure-mfa-guidance`: Azure styled c
 
 ## 2026-08-12 18:50 — Azure MFA guidance fix merged
 All seven hosted checks passed on exact PR head `89ef711`, including CI, CodeQL, Kusari, Binary Release Dry Run, and the Workers documentation preview. Squash-merged PR #41 with the head SHA pinned. GitHub created `main` commit `fdb86db` (`fix(azure): explain MFA verification method (#41)`) and deleted the remote feature branch.
+
+## 2026-08-12 19:05 — v1.1.0 publication blocked at draft visibility gate
+Merged release PR #25 at exact green head `8aee4b7`; `main` advanced to `082eb48`, and Release Please successfully created tag `v1.1.0` plus an empty draft release. Live Release run 31659375787 then failed after its five-minute **Wait for draft release** loop. The draft is visible to the maintainer token, but the `resolve-release` job has only `contents: read`; GitHub lists draft releases only to callers with push access. Binary publication, attestations, and final publication were skipped, so `v1.1.0` remains an unpublished draft with zero assets. Minimal recovery is to grant the resolver `contents: write`, merge that workflow fix, and manually dispatch `release.yml` for the existing `v1.1.0` tag. Do not delete the tag or draft because the recovery path is designed to reuse them.
